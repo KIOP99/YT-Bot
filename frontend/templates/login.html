@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <title>Sign In — YTBot Dashboard</title>
+  <meta name="description" content="Sign in to your YTBot Dashboard" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📹</text></svg>" />
+  <link rel="stylesheet" href="/static/css/main.css?v=2.0" />
+</head>
+<body>
+
+<div class="login-page">
+  <div class="login-card">
+
+    <!-- Logo -->
+    <div class="login-logo">
+      <div class="login-logo-icon">📹</div>
+      <h1 class="login-title">YTBot Dashboard</h1>
+      <p class="login-subtitle">YouTube upload automation</p>
+    </div>
+
+    <!-- Error alert -->
+    {% if error %}
+    <div class="alert alert-danger" style="margin-bottom:20px;">
+      <span>⚠️</span>
+      <span>{{ error }}</span>
+    </div>
+    {% endif %}
+
+    <!-- Login form -->
+    <form action="/auth/login" method="post" id="login-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+
+      <div class="form-group">
+        <label class="form-label" for="username">Username</label>
+        <input
+          class="form-control"
+          type="text"
+          id="username"
+          name="username"
+          autocomplete="username"
+          placeholder="Enter your username"
+          required
+          autofocus
+        />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="password">Password</label>
+        <input
+          class="form-control"
+          type="password"
+          id="password"
+          name="password"
+          autocomplete="current-password"
+          placeholder="Enter your password"
+          required
+        />
+      </div>
+
+      {% if need_totp %}
+      <div class="form-group">
+        <label class="form-label" for="totp_code">2FA Code</label>
+        <input
+          class="form-control"
+          type="text"
+          id="totp_code"
+          name="totp_code"
+          autocomplete="one-time-code"
+          placeholder="6-digit authenticator code"
+          maxlength="6"
+          inputmode="numeric"
+        />
+      </div>
+      {% endif %}
+
+      <button type="submit" class="btn btn-primary btn-lg w-full" id="login-btn" style="margin-top:8px;">
+        🔑 Sign In
+      </button>
+    </form>
+
+    <p class="text-center text-muted text-sm" style="margin-top:24px;">
+      Secured with Argon2 encryption · Auto-rotating credentials
+    </p>
+  </div>
+</div>
+
+<script>
+  // Show loading state on submit
+  document.getElementById('login-form').addEventListener('submit', () => {
+    const btn = document.getElementById('login-btn');
+    btn.disabled = true;
+    btn.textContent = 'Signing in…';
+  });
+</script>
+
+</body>
+</html>

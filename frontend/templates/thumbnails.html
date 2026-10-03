@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}Thumbnails — YTBot{% endblock %}
+{% block page_title %}Thumbnail Stock & Rotation Pool{% endblock %}
+
+{% block content %}
+
+<div class="grid-2 gap-16" style="align-items:start;">
+
+  <!-- Upload & Preview Card -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">🖼️ Upload New Thumbnail</div>
+      <span class="badge badge-info">16:9 HD</span>
+    </div>
+
+    <form id="thumb-upload-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+
+      <div class="form-group">
+        <label class="form-label" for="channel-select">Channel</label>
+        <select name="channel_id" id="channel-select" class="form-control" onchange="location.href='/api/thumbnails?channel_id='+this.value" required>
+          <option value="">— Select Channel —</option>
+          {% for ch in channels %}
+          <option value="{{ ch.id }}" {% if ch.id == selected_channel_id %}selected{% endif %}>{{ ch.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Upload Drop Zone -->
+      <div class="upload-zone" style="padding:24px; cursor:pointer;" id="thumb-drop-zone">
+        <input type="file" id="thumb-file-input" name="file" accept="image/jpeg,image/png" required style="display:none;" />
+        <div class="upload-icon" style="font-size:36px;">🖼️</div>
+        <p class="upload-text" style="margin:8px 0 4px;"><strong>Choose an image or drop here</strong></p>
+        <p class="text-muted text-sm">JPEG or PNG · Recommended 1280×720 or 1920×1080 (16:9)</p>
+      </div>
+
+      <!-- Live Selection Preview Container -->
+      <div id="thumb-preview-box" style="display:none; margin-top:16px; border:1px solid var(--border); border-radius:8px; padding:12px; background:var(--bg-glass);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <strong class="text-sm">👁️ Live Upload Preview</strong>
+          <button type="button" id="clear-preview-btn" class="btn btn-ghost btn-sm" style="padding:2px 8px;">✕ Clear</button>
+        </div>
+        <div style="aspect-ratio:16/9; background:#000; border-radius:6px; overflow:hidden; display:flex; align-items:center; justify-content:center;">
+          <img id="thumb-preview-img" src="" alt="Thumbnail Preview" style="width:100%; height:100%; object-fit:contain;" />
+        </div>
+        <div id="thumb-preview-meta" class="text-muted text-sm" style="margin-top:8px; display:flex; justify-content:space-between;">
+          <span id="preview-filename">filename.jpg</span>
+          <span id="preview-dimensions">1280×720</span>
+        </div>
+      </div>
+
+      <button type="submit" id="thumb-submit-btn" class="btn btn-primary w-full" style="margin-top:16px;">
+        ⬆️ Add to Thumbnail Stock
+      </button>
+    </form>
+
+
+    <!-- Rotation Mode -->
+    {% if selected_channel_id %}
+    <hr style="border-color:var(--border);margin:24px 0;" />
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <div class="card-title">🔄 Daily Rotation Mode</div>
+      <span class="text-muted text-sm">Rotates automatically daily</span>
+    </div>
+    <form id="rotation-form">
+      <div style="display:flex;gap:10px;">
+        <button type="button" class="btn btn-primary" onclick="setMode('sequential')">🔁 Sequential</button>
+        <button type="button" class="btn btn-ghost" onclick="setMode('random')">🎲 Random</button>
+      </div>
+    </form>
+    {% endif %}
+  </div>
+
+  <!-- Thumbnail Stock / Pool Card -->
+  <div>
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">📦 Thumbnail Stock ({{ thumbnails|length }})</div>
+          <div class="card-subtitle">These thumbnails are in stock ready for daily rotation</div>
+        </div>
+        {% if thumbnails %}
+        <span class="badge badge-success">● {{ thumbnails|length }} in Stock</span>
+        {% else %}
+        <span class="badge badge-warn">⚠️ Stock Empty</span>
+        {% endif %}
+      </div>
+
+      {% if thumbnails %}
+      <div class="thumb-grid" id="thumb-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:16px; margin-top:16px;">
+        {% for thumb in thumbnails %}
+        <div class="thumb-item card" data-id="{{ thumb.id }}" draggable="true" style="padding:8px; position:relative; overflow:hidden; border:1px solid var(--border);">
+          <div style="position:relative; aspect-ratio:16/9; background:#000; border-radius:6px; overflow:hidden;">
+            <img
+              class="thumb-img"
+              src="{{ thumb.web_url }}"
+              alt="{{ thumb.filename }}"
+              loading="lazy"
+              style="width:100%; height:100%; object-fit:cover;"
+            />
+            <div style="position:absolute; top:6px; left:6px;">
+              <span class="badge badge-info" style="font-size:11px; padding:2px 6px;">#{{ loop.index }} In Stock</span>
+            </div>
+            <div class="thumb-overlay" style="position:absolute; top:6px; right:6px;">
+              <button class="btn btn-danger btn-sm" data-action="delete-thumb" data-id="{{ thumb.id }}" title="Delete from Stock">🗑</button>
+            </div>
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; font-size:12px;" class="text-muted">
+            <span title="{{ thumb.filename }}" style="max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ thumb.filename }}</span>
+            <span>{{ thumb.width }}×{{ thumb.height }}</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="padding:48px 0; text-align:center;">
+        <div style="font-size:42px; margin-bottom:12px;">🖼️</div>
+        <p class="text-muted" style="margin-bottom:8px;">No thumbnails in stock for this channel yet.</p>
+        <p class="text-muted text-sm">Upload images on the left to add them to the daily rotation pool.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/thumbnails.js"></script>
+<script>
+  async function setMode(mode) {
+    const channelId = document.getElementById('channel-select')?.value;
+    if (!channelId) {
+      YTBot.showToast('Please select a channel first', 'warn');
+      return;
+    }
+
+    const fd = new FormData();
+    fd.append('thumbnail_mode', mode);
+    fd.append('timezone', 'Asia/Kolkata');
+    fd.append('window_start', 14);
+    fd.append('window_end', 20);
+    try {
+      await YTBot.apiFetch(`/api/schedule/${channelId}/config`, { method: 'POST', body: fd });
+      YTBot.showToast(`Rotation mode set to: ${mode}`, 'success');
+    } catch (e) {
+      YTBot.showToast(`Failed: ${e.message}`, 'error');
+    }
+  }
+</script>
+{% endblock %}
+

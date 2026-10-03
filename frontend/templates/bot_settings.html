@@ -1,0 +1,375 @@
+{% extends "base.html" %}
+{% block title %}Bot Manager — YTBot{% endblock %}
+{% block page_title %}🤖 Discord Bot Manager{% endblock %}
+
+{% block head %}
+<style>
+  /* ── Bot Manager Styles ─────────────────────────────────────────── */
+  .bots-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 24px;
+    margin-top: 4px;
+  }
+
+  .bot-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    transition: box-shadow .2s, transform .2s;
+  }
+  .bot-card:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(0,0,0,.25); }
+
+  .bot-card-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 20px 14px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,.03);
+  }
+
+  .bot-avatar {
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: linear-gradient(135deg,#5865F2,#00A2C7);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.6rem; flex-shrink: 0;
+    overflow: hidden;
+  }
+  .bot-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+
+  .bot-info { flex: 1; min-width: 0; }
+  .bot-info h3 { margin: 0; font-size: 1rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bot-info p  { margin: 2px 0 0; font-size: .78rem; color: var(--text-muted); }
+
+  .status-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 999px; font-size: .72rem; font-weight: 600;
+  }
+  .status-online  { background: rgba(35,165,90,.15); color: #23a55a; }
+  .status-offline { background: rgba(128,132,142,.15); color: #80848e; }
+  .status-error   { background: rgba(237,66,69,.15);  color: #ed4245; }
+
+  .bot-card-body { padding: 16px 20px; }
+
+  .bot-controls {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    padding: 12px 20px 16px;
+    border-top: 1px solid var(--border);
+    background: rgba(0,0,0,.12);
+  }
+
+  .token-field {
+    font-family: 'Courier New', monospace;
+    font-size: .8rem;
+    letter-spacing: .5px;
+  }
+
+  .upload-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+  .upload-box {
+    flex: 1; min-width: 140px;
+    border: 2px dashed var(--border);
+    border-radius: 10px; padding: 12px;
+    text-align: center; cursor: pointer;
+    transition: border-color .2s, background .2s;
+    font-size: .8rem; color: var(--text-muted);
+  }
+  .upload-box:hover { border-color: #5865F2; background: rgba(88,101,242,.08); }
+  .upload-box img { max-height: 56px; border-radius: 8px; margin-bottom: 4px; }
+  .upload-box input[type=file] { display: none; }
+
+  .empty-state {
+    text-align: center; padding: 60px 20px; color: var(--text-muted);
+  }
+  .empty-state .emoji { font-size: 3.5rem; margin-bottom: 16px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Header Row -->
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
+  <div>
+    <p style="color:var(--text-muted);margin:0;font-size:.875rem;">
+      Add one Discord bot per YouTube channel. Each bot runs independently with its own token and branding.
+    </p>
+  </div>
+  <div style="display:flex;gap:10px;align-items:center;">
+    <button onclick="refreshStatus()" class="btn btn-ghost btn-sm" id="refresh-btn">
+      🔄 Refresh Status
+    </button>
+  </div>
+</div>
+
+<!-- Bots Grid -->
+{% if channels %}
+<div class="bots-grid" id="bots-grid">
+  {% for ch in channels %}
+  {% set bot = bots.get(ch.id) %}
+  <div class="bot-card" id="card-{{ ch.id }}">
+
+    <!-- Card Header -->
+    <div class="bot-card-header">
+      <div class="bot-avatar" id="avatar-preview-{{ ch.id }}">
+        {% if bot and bot.avatar_path %}
+          <img src="/uploads/bot_assets/ch{{ ch.id }}/{{ bot.avatar_path.split('/')[-1] }}" alt="Avatar" />
+        {% else %}
+          🤖
+        {% endif %}
+      </div>
+      <div class="bot-info">
+        <h3>{{ (bot.bot_name if bot and bot.bot_name) or ch.name }}</h3>
+        <p>📺 {{ ch.name }}</p>
+      </div>
+      <div>
+        <span class="status-badge status-offline" id="status-{{ ch.id }}">
+          ⚫ Offline
+        </span>
+      </div>
+    </div>
+
+    <!-- Card Body — Config Form -->
+    <form id="form-{{ ch.id }}" onsubmit="saveBot(event, {{ ch.id }})">
+      <div class="bot-card-body">
+
+        <!-- Bot Token -->
+        <div class="form-group" style="margin-bottom:14px;">
+          <label class="form-label">Discord Bot Token</label>
+          <div style="position:relative;">
+            <input
+              type="password"
+              id="token-{{ ch.id }}"
+              name="bot_token"
+              class="form-control token-field"
+              placeholder="Paste your bot token here…"
+              value="{{ '●●●●●●●●●●●●●●●●●●●●' if bot and bot.bot_token else '' }}"
+              autocomplete="new-password"
+              style="padding-right:44px;"
+            />
+            <button type="button" onclick="toggleToken({{ ch.id }})"
+              style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1.1rem;color:var(--text-muted);"
+              title="Show/Hide token">👁</button>
+          </div>
+          <div style="font-size:.72rem;color:var(--text-muted);margin-top:4px;">
+            Get it from <a href="https://discord.com/developers/applications" target="_blank" style="color:#5865F2;">Discord Developer Portal</a>
+          </div>
+        </div>
+
+        <!-- Bot Name -->
+        <div class="form-group" style="margin-bottom:14px;">
+          <label class="form-label">Bot Display Name</label>
+          <input
+            type="text"
+            name="bot_name"
+            class="form-control"
+            placeholder="e.g. MyChannel Bot"
+            value="{{ bot.bot_name if bot and bot.bot_name else '' }}"
+          />
+        </div>
+
+        <!-- Avatar + Banner Uploads -->
+        <div class="upload-row" style="margin-bottom:14px;">
+          <div class="upload-box" onclick="document.getElementById('avatar-{{ ch.id }}').click()">
+            <div id="avatar-box-{{ ch.id }}">
+              {% if bot and bot.avatar_path %}
+                <img src="/uploads/bot_assets/ch{{ ch.id }}/{{ bot.avatar_path.split('/')[-1] }}" />
+              {% else %}
+                <div style="font-size:1.8rem;">🖼️</div>
+              {% endif %}
+            </div>
+            <div>Bot Avatar</div>
+            <input type="file" id="avatar-{{ ch.id }}" name="avatar" accept="image/*"
+              onchange="previewImage(this, 'avatar-box-{{ ch.id }}', 'avatar-preview-{{ ch.id }}')" />
+          </div>
+
+          <div class="upload-box" onclick="document.getElementById('banner-{{ ch.id }}').click()">
+            <div id="banner-box-{{ ch.id }}">
+              {% if bot and bot.banner_path %}
+                <img src="/uploads/bot_assets/ch{{ ch.id }}/{{ bot.banner_path.split('/')[-1] }}" />
+              {% else %}
+                <div style="font-size:1.8rem;">🎨</div>
+              {% endif %}
+            </div>
+            <div>Bot Banner</div>
+            <input type="file" id="banner-{{ ch.id }}" name="banner" accept="image/*"
+              onchange="previewImage(this, 'banner-box-{{ ch.id }}', null)" />
+          </div>
+        </div>
+
+        <!-- Enabled Toggle -->
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.875rem;">
+          <input type="checkbox" name="is_enabled" value="true"
+            {{ 'checked' if not bot or bot.is_enabled else '' }}
+            style="width:16px;height:16px;accent-color:#5865F2;" />
+          Auto-start this bot on server startup
+        </label>
+
+        {% if bot and bot.last_error %}
+        <div style="margin-top:10px;padding:8px 12px;background:rgba(237,66,69,.1);border-radius:8px;font-size:.78rem;color:#ed4245;">
+          ⚠️ Last Error: {{ bot.last_error[:200] }}
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Controls -->
+      <div class="bot-controls">
+        <button type="submit" class="btn btn-primary btn-sm">
+          💾 Save
+        </button>
+        <button type="button" onclick="startBot({{ ch.id }})" class="btn btn-sm" style="background:#23a55a;color:#fff;border:none;">
+          ▶ Start
+        </button>
+        <button type="button" onclick="stopBot({{ ch.id }})" class="btn btn-sm" style="background:#80848e;color:#fff;border:none;">
+          ⏹ Stop
+        </button>
+        <button type="button" onclick="restartBot({{ ch.id }})" class="btn btn-ghost btn-sm">
+          🔄 Restart
+        </button>
+        <button type="button" onclick="deleteBot({{ ch.id }})" class="btn btn-ghost btn-sm" style="color:#ed4245;margin-left:auto;">
+          🗑 Delete
+        </button>
+      </div>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+
+{% else %}
+<div class="empty-state">
+  <div class="emoji">🤖</div>
+  <h3>No YouTube channels found</h3>
+  <p>Add a YouTube channel first, then come back to configure its Discord bot.</p>
+  <a href="/api/channels" class="btn btn-primary" style="margin-top:16px;">📺 Go to Channels</a>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Utility ─────────────────────────────────────────────────────────────────
+function showToast(msg, type='success') {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 4000);
+}
+
+function toggleToken(chId) {
+  const el = document.getElementById(`token-${chId}`);
+  el.type = el.type === 'password' ? 'text' : 'password';
+}
+
+function previewImage(input, boxId, avatarHeaderId) {
+  if (!input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const box = document.getElementById(boxId);
+    box.innerHTML = `<img src="${e.target.result}" style="max-height:56px;border-radius:8px;margin-bottom:4px;" />`;
+    if (avatarHeaderId) {
+      const hdr = document.getElementById(avatarHeaderId);
+      hdr.innerHTML = `<img src="${e.target.result}" />`;
+    }
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+
+// ── Bot Actions ──────────────────────────────────────────────────────────────
+async function saveBot(e, chId) {
+  e.preventDefault();
+  const form = document.getElementById(`form-${chId}`);
+  const fd = new FormData(form);
+
+  // If token field still shows masked value, don't send it
+  const tokenInput = document.getElementById(`token-${chId}`);
+  if (tokenInput.value.startsWith('●')) {
+    fd.delete('bot_token');
+  }
+
+  try {
+    const resp = await fetch(`/api/bots/${chId}/save`, { method: 'POST', body: fd });
+    const data = await resp.json();
+    if (data.ok) {
+      showToast('✅ Bot configuration saved!');
+      setTimeout(() => refreshStatus(), 500);
+    } else {
+      showToast('❌ ' + (data.detail || 'Save failed'), 'error');
+    }
+  } catch(err) {
+    showToast('❌ Network error', 'error');
+  }
+}
+
+async function botAction(chId, action) {
+  try {
+    const resp = await fetch(`/api/bots/${chId}/${action}`, { method: 'POST' });
+    const data = await resp.json();
+    if (data.ok) {
+      showToast(`✅ ${data.message}`);
+      setTimeout(() => refreshStatus(), 1500);
+    } else {
+      showToast('❌ ' + (data.detail || 'Action failed'), 'error');
+    }
+  } catch(err) {
+    showToast('❌ Network error', 'error');
+  }
+}
+
+function startBot(chId)   { botAction(chId, 'start'); }
+function stopBot(chId)    { botAction(chId, 'stop'); }
+function restartBot(chId) { botAction(chId, 'restart'); }
+
+async function deleteBot(chId) {
+  if (!confirm('Delete this bot configuration? The bot will be stopped.')) return;
+  try {
+    const resp = await fetch(`/api/bots/${chId}`, { method: 'DELETE' });
+    const data = await resp.json();
+    if (data.ok) {
+      showToast('🗑️ Bot deleted');
+      document.getElementById(`card-${chId}`)?.remove();
+    }
+  } catch(err) {
+    showToast('❌ Network error', 'error');
+  }
+}
+
+// ── Status Polling ───────────────────────────────────────────────────────────
+async function refreshStatus() {
+  try {
+    const resp = await fetch('/api/bots/status');
+    const data = await resp.json();
+    const bots = data.bots || {};
+
+    // Reset all to offline first
+    document.querySelectorAll('[id^="status-"]').forEach(el => {
+      const chId = el.id.replace('status-', '');
+      if (!(chId in bots)) {
+        el.className = 'status-badge status-offline';
+        el.textContent = '⚫ Offline';
+      }
+    });
+
+    for (const [chId, info] of Object.entries(bots)) {
+      const badge = document.getElementById(`status-${chId}`);
+      if (!badge) continue;
+      if (info.running) {
+        badge.className = 'status-badge status-online';
+        badge.textContent = `🟢 Online${info.user ? ' · ' + info.user : ''}`;
+      } else {
+        badge.className = 'status-badge status-offline';
+        badge.textContent = '⚫ Offline';
+      }
+    }
+  } catch(e) {}
+}
+
+// Auto-refresh every 15 seconds
+refreshStatus();
+setInterval(refreshStatus, 15000);
+</script>
+{% endblock %}

@@ -1,0 +1,2730 @@
+{% extends "base.html" %}
+{% block title %}Schedule — YTBot{% endblock %}
+{% block page_title %}Schedule & Automation{% endblock %}
+
+{% block content %}
+
+<!-- Real-Time Clock Bar -->
+<div id="clock-bar" style="display:flex; align-items:center; gap:16px; background:linear-gradient(135deg,rgba(99,102,241,0.15),rgba(168,85,247,0.1)); border:1px solid rgba(99,102,241,0.3); border-radius:12px; padding:14px 20px; margin-bottom:24px; flex-wrap:wrap;">
+  <div style="display:flex; align-items:center; gap:10px; flex:1;">
+    <span style="font-size:22px;">🕐</span>
+    <div>
+      <div style="font-size:11px; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; font-weight:600;">Live Clock</div>
+      <div id="clock-ist" style="font-size:15px; font-weight:700; color:#c7d2fe; font-family:'JetBrains Mono',monospace; letter-spacing:.04em;">—</div>
+    </div>
+  </div>
+  <div style="width:1px; height:36px; background:rgba(255,255,255,0.1);"></div>
+  <div style="display:flex; align-items:center; gap:10px; flex:1;">
+    <span style="font-size:20px;">🌏</span>
+    <div>
+      <div style="font-size:11px; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; font-weight:600;">Bangladesh (BDT)</div>
+      <div id="clock-bdt" style="font-size:15px; font-weight:700; color:#a5f3fc; font-family:'JetBrains Mono',monospace; letter-spacing:.04em;">—</div>
+    </div>
+  </div>
+  <div style="width:1px; height:36px; background:rgba(255,255,255,0.1);"></div>
+  <div style="display:flex; align-items:center; gap:10px; flex:1;">
+    <span style="font-size:20px;">🌐</span>
+    <div>
+      <div style="font-size:11px; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; font-weight:600;">UTC</div>
+      <div id="clock-utc" style="font-size:15px; font-weight:700; color:#86efac; font-family:'JetBrains Mono',monospace; letter-spacing:.04em;">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- Channel Selector -->
+<div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
+  <div class="form-group" style="max-width:320px;margin-bottom:0;">
+    <label class="form-label" style="font-size:12px; text-transform:uppercase; letter-spacing:.06em;">Select Channel</label>
+    <select class="form-control" id="channel-select" onchange="location.href='/api/schedule?channel_id='+this.value" style="font-size:14px;">
+      <option value="">— All Channels —</option>
+      {% for ch in channels %}
+      <option value="{{ ch.id }}" {% if ch.id == selected_channel_id %}selected{% endif %}>{{ ch.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% if selected_channel_id %}
+  <a href="/api/comments?channel_id={{ selected_channel_id }}" class="btn btn-ghost" style="display:inline-flex;align-items:center;gap:6px;">
+    ✍️ Auto Comment Settings
+  </a>
+  {% endif %}
+</div>
+
+{% if selected_channel_id and schedule %}
+<div class="grid-2 gap-16" style="align-items:start;">
+
+  <!-- ═══ Schedule Config Card ═══ -->
+  <div class="card" style="border:1px solid rgba(99,102,241,0.2);">
+    <div class="card-header" style="padding-bottom:16px; border-bottom:1px solid rgba(255,255,255,0.06);">
+      <div class="card-title" style="font-size:15px; font-weight:700;">
+        ⚙️ Upload Schedule
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        {% if schedule.is_active %}
+        <span class="badge badge-success" style="display:flex; align-items:center; gap:5px; font-size:12px;">
+          <span style="width:6px; height:6px; border-radius:50%; background:#10b981; animation:pulse 2s infinite; display:inline-block;"></span>
+          Active
+        </span>
+        {% else %}
+        <span class="badge badge-warn" style="font-size:12px;">⏸ Paused</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <form id="sched-form" style="padding-top:4px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+
+      <!-- Timezone -->
+      <div class="form-group" style="margin-bottom:20px;">
+        <label class="form-label" style="font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:#94a3b8;">
+          🌍 Timezone
+        </label>
+        <select name="timezone_str" id="tz-select" class="form-control" style="font-size:14px;" onchange="onTimezoneChange(this.value)">
+          <optgroup label="🇮🇳 India">
+            <option value="Asia/Kolkata" {% if schedule.timezone == 'Asia/Kolkata' or schedule.timezone == 'US/Eastern' %}selected{% endif %}>Asia/Kolkata (IST, UTC+5:30)</option>
+          </optgroup>
+          <optgroup label="🇧🇩 Bangladesh">
+            <option value="Asia/Dhaka" {% if schedule.timezone == 'Asia/Dhaka' %}selected{% endif %}>Asia/Dhaka (BDT, UTC+6)</option>
+          </optgroup>
+          <optgroup label="🌐 Other Common">
+            <option value="UTC" {% if schedule.timezone == 'UTC' %}selected{% endif %}>UTC (Universal Time)</option>
+            <option value="US/Eastern" {% if schedule.timezone == 'US/Eastern' %}selected{% endif %}>US/Eastern (EST/EDT)</option>
+            <option value="US/Pacific" {% if schedule.timezone == 'US/Pacific' %}selected{% endif %}>US/Pacific (PST/PDT)</option>
+            <option value="Europe/London" {% if schedule.timezone == 'Europe/London' %}selected{% endif %}>Europe/London (GMT/BST)</option>
+            <option value="Asia/Tokyo" {% if schedule.timezone == 'Asia/Tokyo' %}selected{% endif %}>Asia/Tokyo (JST, UTC+9)</option>
+            <option value="Australia/Sydney" {% if schedule.timezone == 'Australia/Sydney' %}selected{% endif %}>Australia/Sydney (AEST)</option>
+          </optgroup>
+        </select>
+        <div id="tz-current-time" style="margin-top:8px; font-size:12px; color:#a5f3fc; font-family:'JetBrains Mono',monospace; font-weight:600;"></div>
+      </div>
+
+      <!-- Scheduling Mode -->
+      <div class="form-group" style="margin-bottom:20px;">
+        <label class="form-label" style="font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:#94a3b8;">
+          📅 Scheduling Mode
+        </label>
+        <div style="display:flex; gap:10px;">
+          <label id="mode-exact-btn" onclick="setMode('exact')" style="flex:1; display:flex; align-items:center; gap:10px; background:rgba(99,102,241,0.15); border:2px solid rgba(99,102,241,0.5); border-radius:10px; padding:12px 16px; cursor:pointer; transition:all .2s;">
+            <input type="radio" name="schedule_mode" value="exact" {% if not schedule.schedule_mode or schedule.schedule_mode == 'exact' %}checked{% endif %} style="accent-color:#818cf8; width:16px; height:16px;" onchange="setMode('exact')">
+            <div>
+              <div style="font-weight:700; font-size:13px; color:#c7d2fe;">⏰ Exact Time</div>
+              <div style="font-size:11px; color:#94a3b8; margin-top:2px;">Upload at a fixed time daily</div>
+            </div>
+          </label>
+          <label id="mode-window-btn" onclick="setMode('window')" style="flex:1; display:flex; align-items:center; gap:10px; background:rgba(30,41,59,0.6); border:2px solid rgba(255,255,255,0.08); border-radius:10px; padding:12px 16px; cursor:pointer; transition:all .2s;">
+            <input type="radio" name="schedule_mode" value="window" {% if schedule.schedule_mode == 'window' %}checked{% endif %} style="accent-color:#818cf8; width:16px; height:16px;" onchange="setMode('window')">
+            <div>
+              <div style="font-weight:700; font-size:13px; color:#94a3b8;">🎲 Random Window</div>
+              <div style="font-size:11px; color:#64748b; margin-top:2px;">Random time within a range</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Calendar & Exact Time Picker -->
+      <div id="exact-section" style="margin-bottom:20px;">
+        <!-- Calendar Date Picker (Today, Tomorrow, Calendar Date) -->
+        <div style="margin-bottom:14px; background:rgba(15,23,42,0.6); border:1px solid rgba(99,102,241,0.25); border-radius:10px; padding:12px 14px;">
+          <label class="form-label" style="font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:#94a3b8; display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+            <span>📅 Calendar & Upload Day</span>
+            <span id="target-date-display-badge" class="badge" style="background:rgba(99,102,241,0.25); border:1px solid #818cf8; color:#c7d2fe; font-size:11px; font-weight:700;">☀️ Today</span>
+          </label>
+
+          <!-- Day Selection Buttons -->
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+            <button type="button" id="btn-date-today" onclick="setTargetDatePreset('today')" class="btn btn-sm" style="font-size:12px; font-weight:700; padding:6px 14px; background:rgba(99,102,241,0.3); border:1px solid #818cf8; color:#ffffff; border-radius:8px; cursor:pointer;">
+              ☀️ Today
+            </button>
+            <button type="button" id="btn-date-tomorrow" onclick="setTargetDatePreset('tomorrow')" class="btn btn-sm btn-ghost" style="font-size:12px; font-weight:600; padding:6px 14px; border:1px solid rgba(255,255,255,0.12); color:#cbd5e1; border-radius:8px; cursor:pointer;">
+              🌙 Tomorrow
+            </button>
+            <button type="button" id="btn-date-calendar" onclick="toggleCalendarInput()" class="btn btn-sm btn-ghost" style="font-size:12px; font-weight:600; padding:6px 14px; border:1px solid rgba(255,255,255,0.12); color:#cbd5e1; border-radius:8px; cursor:pointer;">
+              📅 Pick Date from Calendar
+            </button>
+            <button type="button" id="btn-date-auto" onclick="setTargetDatePreset('auto')" class="btn btn-sm btn-ghost" style="font-size:12px; font-weight:600; padding:6px 14px; border:1px solid rgba(255,255,255,0.12); color:#94a3b8; border-radius:8px; cursor:pointer;" title="Next upcoming time (today if future, else tomorrow)">
+              🔄 Daily Auto
+            </button>
+          </div>
+
+          <!-- Calendar Date Input (revealed when Calendar Date is clicked) -->
+          <div id="calendar-input-row" style="display:none; margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.08); align-items:center; gap:10px; flex-wrap:wrap;">
+            <div style="font-size:11px; color:#cbd5e1; font-weight:600;">Calendar Date:</div>
+            <input type="date" id="calendar-date-input" class="form-control" style="font-size:13px; font-weight:700; color:#c7d2fe; width:auto; padding:6px 12px; background:rgba(0,0,0,0.4);" onchange="onCustomCalendarDateChange(this.value)">
+            <span id="calendar-selected-hint" style="font-size:11px; color:#a5b4fc;"></span>
+          </div>
+
+          <input type="hidden" name="target_date" id="target-date-input" value="today">
+        </div>
+
+        <!-- Time Picker (Hour & Minute) -->
+        <label class="form-label" style="font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:#94a3b8;">
+          🕐 Upload Time (in selected timezone)
+        </label>
+        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+          <div style="display:flex; align-items:center; gap:8px; background:rgba(15,23,42,0.7); border:1px solid rgba(99,102,241,0.3); border-radius:10px; padding:8px 16px;">
+            <select name="upload_hour" id="upload-hour" class="form-control" style="background:transparent; border:none; font-size:22px; font-weight:800; color:#c7d2fe; font-family:'JetBrains Mono',monospace; width:72px; padding:0; text-align:center;" onchange="updateTimePreview()">
+              {% for h in range(0, 24) %}
+              <option value="{{ h }}" {% if h == (schedule.upload_hour or 14) %}selected{% endif %}>{{ '%02d' % h }}</option>
+              {% endfor %}
+            </select>
+            <span style="font-size:24px; font-weight:900; color:#818cf8;">:</span>
+            <select name="upload_minute" id="upload-minute" class="form-control" style="background:transparent; border:none; font-size:22px; font-weight:800; color:#c7d2fe; font-family:'JetBrains Mono',monospace; width:72px; padding:0; text-align:center;" onchange="updateTimePreview()">
+              {% for m in range(0, 60) %}
+              <option value="{{ m }}" {% if m == (schedule.upload_minute or 0) %}selected{% endif %}>{{ '%02d' % m }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div id="ampm-display" style="font-size:15px; font-weight:700; color:#a5f3fc; font-family:'JetBrains Mono',monospace;"></div>
+          <!-- Live target preview banner -->
+          <div id="live-target-preview" style="font-size:12px; font-weight:600; color:#60a5fa; background:rgba(96,165,250,0.1); border:1px solid rgba(96,165,250,0.25); border-radius:6px; padding:4px 10px;"></div>
+        </div>
+
+        <!-- Quick presets with 1 AM, 2 AM, 6 AM, 8 AM, 12 PM, 2 PM, 6 PM, 9 PM, 11 PM -->
+        <div style="display:flex; gap:6px; margin-top:12px; flex-wrap:wrap; align-items:center;">
+          <span style="font-size:11px; color:#64748b; font-weight:700;">QUICK:</span>
+          {% for label, h, m in [('1 AM', 1, 0), ('2 AM', 2, 0), ('6 AM', 6, 0), ('8 AM', 8, 0), ('12 PM', 12, 0), ('2 PM', 14, 0), ('6 PM', 18, 0), ('9 PM', 21, 0), ('11 PM', 23, 0)] %}
+          <button type="button" onclick="setTime({{ h }}, {{ m }})" class="btn btn-ghost" style="font-size:11px; padding:4px 9px; font-weight:700; border-radius:6px; border:1px solid rgba(255,255,255,0.08); color:#c7d2fe;">{{ label }}</button>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Window Section (hidden by default if exact) -->
+      <div id="window-section" style="margin-bottom:20px; display:none;">
+        <label class="form-label" style="font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:#94a3b8;">
+          🎯 Upload Window (hours in timezone)
+        </label>
+        <div class="grid-2 gap-16">
+          <div class="form-group">
+            <label class="form-label" style="font-size:11px;">From (hour 0–23)</label>
+            <input class="form-control" type="number" name="window_start" min="0" max="22" value="{{ schedule.window_start_hour }}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" style="font-size:11px;">To (hour 0–23)</label>
+            <input class="form-control" type="number" name="window_end" min="1" max="23" value="{{ schedule.window_end_hour }}" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Pre-process offset -->
+      <div class="form-group" style="margin-bottom:20px; background:rgba(234,179,8,0.06); border:1px solid rgba(234,179,8,0.15); border-radius:10px; padding:14px 16px;">
+        <label class="form-label" style="font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:#fbbf24;">
+          ⚡ Pre-Processing Lead Time
+        </label>
+        <div style="display:flex; align-items:center; gap:12px; margin-top:6px;">
+          <input class="form-control" type="number" name="pre_process_minutes" id="pre-process-minutes"
+            min="0" max="120" step="5" value="{{ schedule.pre_process_minutes or 30 }}"
+            style="width:90px; font-weight:700; font-size:16px; text-align:center; color:#fbbf24;"
+            onchange="updateProcessPreview()">
+          <div>
+            <div style="font-size:13px; font-weight:600; color:#fde68a;">minutes before upload</div>
+            <div style="font-size:11px; color:#92400e; margin-top:2px;" id="process-time-desc">FFmpeg & video editing will start 30 min early</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 🖼️ Auto-Selected Thumbnail Configuration & Live Preview -->
+      <div class="form-group" style="margin-bottom:20px; background:rgba(30,41,59,0.5); border:1px solid rgba(56,189,248,0.25); border-radius:12px; padding:16px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:18px;">🖼️</span>
+            <div>
+              <div style="font-size:12px; text-transform:uppercase; letter-spacing:.06em; font-weight:700; color:#7dd3fc;">
+                Thumbnail for Next Upload
+              </div>
+              <div style="font-size:11px; color:#94a3b8;">
+                Auto-rotates or automatically extracts from video
+              </div>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            {% if channel_thumbnails %}
+            <span class="badge badge-success" style="font-size:11px; padding:3px 8px;">
+              ● {{ channel_thumbnails|length }} in Stock
+            </span>
+            {% else %}
+            <span class="badge badge-warn" style="font-size:11px; padding:3px 8px;">
+              ⚡ Auto Video Frame
+            </span>
+            {% endif %}
+            <a href="/api/thumbnails?channel_id={{ selected_channel_id }}" class="btn btn-ghost btn-sm" style="font-size:11px; padding:2px 8px; color:#38bdf8; text-decoration:none; border:1px solid rgba(56,189,248,0.3);">
+              Stock Pool →
+            </a>
+          </div>
+        </div>
+
+        <!-- Mode & Selection Row -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+          <div>
+            <label class="form-label" style="font-size:11px; color:#94a3b8; text-transform:uppercase;">Rotation Mode</label>
+            <select name="thumbnail_mode" id="form-thumbnail-mode" class="form-control" style="font-size:13px;" onchange="onThumbModeChange(this.value)">
+              <option value="sequential" {% if schedule.thumbnail_mode == 'sequential' %}selected{% endif %}>📋 Sequential (in order)</option>
+              <option value="random" {% if schedule.thumbnail_mode == 'random' %}selected{% endif %}>🎲 Random (shuffle pool)</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label" style="font-size:11px; color:#94a3b8; text-transform:uppercase;">Thumbnail Selection</label>
+            <select name="selected_thumbnail_id" id="form-thumbnail-select" class="form-control" style="font-size:13px;" onchange="onThumbSelectChange(this.value)">
+              <option value="0">✨ Auto-Select (Auto-Rotate)</option>
+              {% for t in channel_thumbnails %}
+              <option value="{{ t.id }}" {% if next_thumbnail and next_thumbnail.id == t.id %}selected{% endif %}>
+                #{{ loop.index }}: {{ t.filename }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <!-- Visual Auto-Selected Thumbnail Preview Box -->
+        <div style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:12px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+          <div style="width:130px; min-width:130px; aspect-ratio:16/9; background:#000; border-radius:6px; overflow:hidden; border:1px solid rgba(255,255,255,0.15); box-shadow:0 2px 8px rgba(0,0,0,0.5); position:relative;">
+            <img id="form-thumb-preview-img" src="{{ next_thumbnail.web_url if next_thumbnail else '' }}" alt="Thumbnail Preview" style="width:100%; height:100%; object-fit:cover; display:{% if next_thumbnail %}block{% else %}none{% endif %};" onerror="this.style.display='none'; document.getElementById('form-thumb-placeholder').style.display='flex';" />
+            <div id="form-thumb-placeholder" style="width:100%; height:100%; display:{% if next_thumbnail %}none{% else %}flex{% endif %}; align-items:center; justify-content:center; background:rgba(30,41,59,0.8); color:#94a3b8; font-size:24px;">
+              🖼️
+            </div>
+          </div>
+          <div style="flex:1; min-width:180px;">
+            <div id="form-thumb-title" style="color:#ffffff; font-size:13px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{{ next_thumbnail.filename if next_thumbnail else 'Auto-captured from video' }}">
+              {{ next_thumbnail.filename if next_thumbnail else 'Auto-extract frame from video' }}
+            </div>
+            <div id="form-thumb-meta" style="color:#94a3b8; font-size:11.5px; margin-top:2px;">
+              {% if next_thumbnail %}
+                16:9 HD &bull; {{ next_thumbnail.width }}×{{ next_thumbnail.height }} &bull; {{ (next_thumbnail.file_size_bytes / 1024)|round(1) }} KB
+              {% else %}
+                Auto-captures 1280×720 HD frame from queued video
+              {% endif %}
+            </div>
+            <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+              <button type="button" class="btn btn-ghost btn-sm" onclick="rotateOrAutoSelectThumb()" style="padding:3px 10px; font-size:11.5px; color:#38bdf8; border:1px solid rgba(56,189,248,0.3); display:inline-flex; align-items:center; gap:4px;">
+                <span>🔄</span> Auto-Select Next / Cycle
+              </button>
+              {% if scheduled_video %}
+              <button type="button" class="btn btn-ghost btn-sm" onclick="extractVideoThumbNow()" style="padding:3px 10px; font-size:11.5px; color:#a5b4fc; border:1px solid rgba(165,180,252,0.3); display:inline-flex; align-items:center; gap:4px;">
+                <span>📸</span> Capture from Video
+              </button>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 🎬 Video Queued for Next Schedule -->
+      <div class="form-group" style="margin-bottom:20px; background:rgba(30,41,59,0.5); border:1px solid rgba(99,102,241,0.25); border-radius:12px; padding:16px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:18px;">🎬</span>
+            <div>
+              <div style="font-size:12px; text-transform:uppercase; letter-spacing:.06em; font-weight:700; color:#c7d2fe;">
+                Video Queued for Next Upload
+              </div>
+              <div style="font-size:11px; color:#94a3b8;">
+                This video will be processed & uploaded on schedule
+              </div>
+            </div>
+          </div>
+          {% if scheduled_video %}
+          <span class="badge badge-success" style="font-size:11px; display:inline-flex; align-items:center; gap:4px; padding:3px 8px;">
+            <span style="width:6px; height:6px; border-radius:50%; background:#10b981; display:inline-block;"></span>
+            Active
+          </span>
+          {% else %}
+          <span class="badge badge-warn" style="font-size:11px; padding:3px 8px;">
+            ⚠️ No Video Set
+          </span>
+          {% endif %}
+        </div>
+
+        {% if scheduled_video %}
+        <div style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:14px;">
+          <div style="display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap;">
+            <!-- Mini Video Preview / Player -->
+            <div style="width:130px; min-width:130px; aspect-ratio:16/9; background:#000; border-radius:8px; overflow:hidden; border:1px solid rgba(255,255,255,0.12); position:relative; box-shadow:0 2px 8px rgba(0,0,0,0.4);">
+              <video src="{{ scheduled_video.web_url }}" preload="metadata" style="width:100%; height:100%; object-fit:cover; display:block;" controls></video>
+            </div>
+
+            <!-- Video Metadata Info -->
+            <div style="flex:1; min-width:200px;">
+              <div style="font-weight:700; font-size:14px; color:#f8fafc; line-height:1.3; margin-bottom:4px; word-break:break-word;">
+                {{ scheduled_video.title }}
+              </div>
+              <div style="font-size:11px; color:#94a3b8; display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+                <span>📁 {{ scheduled_video.original_filename }}</span>
+                <span>⚖️ {{ "%.1f"|format(scheduled_video.file_size_bytes / 1024 / 1024) }} MB</span>
+                {% if scheduled_video.duration_seconds %}
+                <span>⏱️ {{ "%02d:%02d"|format((scheduled_video.duration_seconds // 60)|int, (scheduled_video.duration_seconds % 60)|int) }}</span>
+                {% endif %}
+                <span class="badge badge-info" style="font-size:10px; padding:1px 6px; text-transform:capitalize;">{{ scheduled_video.privacy_status }}</span>
+              </div>
+
+              <!-- Overlays & Processing Badges -->
+              <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                {% if scheduled_video.overlay_username_enabled or scheduled_video.overlay_password_enabled %}
+                <span class="badge badge-success" style="font-size:11px; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); color:#34d399;">
+                  ✨ Dynamic Codes (Overlays Active)
+                </span>
+                {% else %}
+                <span class="badge badge-muted" style="font-size:11px;">No Overlays</span>
+                {% endif %}
+
+                {% if scheduled_video.apply_ffmpeg %}
+                <span class="badge badge-info" style="font-size:11px; background:rgba(59,130,246,0.15); border:1px solid rgba(59,130,246,0.3); color:#60a5fa;">
+                  ⚡ FFmpeg Enabled
+                </span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <!-- Video Actions & Switcher Footer -->
+          <div style="display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap; border-top:1px solid rgba(255,255,255,0.06); margin-top:12px; padding-top:10px;">
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <a href="/api/videos/{{ scheduled_video.id }}/manage" class="btn btn-ghost btn-sm" style="font-size:12px; padding:5px 10px; border:1px solid rgba(99,102,241,0.3); color:#c7d2fe;">
+                🎬 Video Studio / Edit Overlays
+              </a>
+              <button type="button" onclick="openTestScheduleModal()" class="btn btn-sm" style="display:inline-flex; align-items:center; gap:6px; font-weight:700; font-size:12px; padding:5px 12px; background:linear-gradient(135deg, #f59e0b, #d97706); border:none; color:#ffffff; border-radius:6px; box-shadow:0 2px 8px rgba(245,158,11,0.35); cursor:pointer;">
+                ⚡ Test Upload Now
+              </button>
+            </div>
+
+            {% if channel_videos and channel_videos|length > 1 %}
+            <div style="display:flex; align-items:center; gap:8px;">
+              <label style="font-size:11px; color:#94a3b8; margin:0; white-space:nowrap;">Switch Video:</label>
+              <select class="form-control" style="font-size:12px; padding:4px 8px; width:auto; max-width:200px; height:32px;" onchange="changeScheduledVideo(this.value)">
+                {% for v in channel_videos %}
+                <option value="{{ v.id }}" {% if v.id == scheduled_video.id %}selected{% endif %}>
+                  {{ v.title }} ({{ v.original_filename }})
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+
+        {% else %}
+        <!-- No Video Configured Alert -->
+        <div style="background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.25); border-radius:10px; padding:14px 16px;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span style="font-size:22px;">⚠️</span>
+            <div style="flex:1;">
+              <div style="font-weight:700; color:#fca5a5; font-size:13px;">No Video Set for this Schedule</div>
+              <div style="font-size:11px; color:#cbd5e1; margin-top:2px;">
+                The scheduled upload will not run until an active video is chosen.
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top:12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            {% if channel_videos and channel_videos|length > 0 %}
+            <div style="display:flex; align-items:center; gap:8px;">
+              <select class="form-control" id="pick-video-select" style="font-size:12px; padding:6px 10px; width:auto; min-width:180px; height:34px;">
+                <option value="">— Select an Uploaded Video —</option>
+                {% for v in channel_videos %}
+                <option value="{{ v.id }}">{{ v.title }} ({{ v.original_filename }})</option>
+                {% endfor %}
+              </select>
+              <button type="button" class="btn btn-primary btn-sm" onclick="changeScheduledVideo(document.getElementById('pick-video-select').value)">
+                ✅ Set for Schedule
+              </button>
+            </div>
+            {% endif %}
+            <a href="/api/videos" class="btn btn-ghost btn-sm" style="font-size:12px; border:1px solid rgba(255,255,255,0.15);">
+              ➕ Upload Video
+            </a>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Next Upload Preview & Live Countdown -->
+      {% if schedule.next_upload_at %}
+      <div id="next-upload-card" style="background:linear-gradient(135deg, rgba(99,102,241,0.12), rgba(15,23,42,0.7)); border:1px solid rgba(99,102,241,0.3); border-radius:12px; padding:16px 18px; margin-bottom:20px; box-shadow:0 4px 20px rgba(0,0,0,0.25);">
+        <!-- Card Header with Title & Live Status Badge -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+          <div style="font-size:11.5px; color:#a5b4fc; text-transform:uppercase; letter-spacing:.08em; font-weight:700; display:flex; align-items:center; gap:6px;">
+            <span>📅</span> NEXT SCHEDULED UPLOAD
+          </div>
+          <div id="upload-status-badge" style="display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:700; font-family:'JetBrains Mono',monospace; padding:3px 10px; border-radius:20px; background:rgba(99,102,241,0.2); border:1px solid rgba(99,102,241,0.4); color:#c7d2fe;">
+            <span id="upload-status-dot" style="width:7px; height:7px; border-radius:50%; background:#818cf8; display:inline-block;"></span>
+            <span id="upload-status-text">Calculating…</span>
+          </div>
+        </div>
+
+        <!-- Live Digital Countdown Box -->
+        <div style="background:rgba(10,15,30,0.75); border:1px solid rgba(99,102,241,0.25); border-radius:10px; padding:12px 16px; margin-bottom:14px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px;">
+          <!-- Timer unit digits -->
+          <div style="display:flex; align-items:center; gap:6px;">
+            <!-- Days Unit (shown when > 0) -->
+            <div id="sched-countdown-days-box" style="display:none; text-align:center; min-width:48px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:6px; padding:6px 8px;">
+              <div id="sched-countdown-days" style="font-family:'JetBrains Mono',monospace; font-size:1.6rem; font-weight:800; color:#ffffff; line-height:1;">00</div>
+              <div style="font-size:9px; text-transform:uppercase; color:#94a3b8; letter-spacing:.06em; margin-top:3px; font-weight:600;">Days</div>
+            </div>
+            <span id="sched-countdown-days-sep" style="display:none; font-size:1.4rem; font-weight:800; color:#6366f1; margin:0 2px;">:</span>
+
+            <!-- Hours Unit -->
+            <div style="text-align:center; min-width:48px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:6px; padding:6px 8px;">
+              <div id="sched-countdown-hours" style="font-family:'JetBrains Mono',monospace; font-size:1.6rem; font-weight:800; color:#ffffff; line-height:1;">00</div>
+              <div style="font-size:9px; text-transform:uppercase; color:#94a3b8; letter-spacing:.06em; margin-top:3px; font-weight:600;">Hours</div>
+            </div>
+            <span style="font-size:1.4rem; font-weight:800; color:#6366f1; margin:0 2px;">:</span>
+
+            <!-- Minutes Unit -->
+            <div style="text-align:center; min-width:48px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:6px; padding:6px 8px;">
+              <div id="sched-countdown-mins" style="font-family:'JetBrains Mono',monospace; font-size:1.6rem; font-weight:800; color:#ffffff; line-height:1;">00</div>
+              <div style="font-size:9px; text-transform:uppercase; color:#94a3b8; letter-spacing:.06em; margin-top:3px; font-weight:600;">Minutes</div>
+            </div>
+            <span style="font-size:1.4rem; font-weight:800; color:#6366f1; margin:0 2px;">:</span>
+
+            <!-- Seconds Unit -->
+            <div style="text-align:center; min-width:48px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:6px; padding:6px 8px;">
+              <div id="sched-countdown-secs" style="font-family:'JetBrains Mono',monospace; font-size:1.6rem; font-weight:800; color:#818cf8; line-height:1; text-shadow:0 0 10px rgba(129,140,248,0.5);">00</div>
+              <div style="font-size:9px; text-transform:uppercase; color:#94a3b8; letter-spacing:.06em; margin-top:3px; font-weight:600;">Seconds</div>
+            </div>
+          </div>
+
+          <!-- Description / Time Left label -->
+          <div style="flex:1; min-width:160px; text-align:right;">
+            <div style="font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:#94a3b8; font-weight:600;">Time Remaining</div>
+            <div id="sched-countdown-summary" style="font-size:14px; font-weight:700; color:#38bdf8; margin-top:2px;">
+              Calculating…
+            </div>
+            <div id="sched-local-time-hint" style="font-size:11px; color:#64748b; margin-top:2px;">
+              Your local time
+            </div>
+          </div>
+        </div>
+
+        <!-- Schedule Target Times Breakdown -->
+        <div style="display:flex; flex-direction:column; gap:8px; font-size:12.5px; font-family:'JetBrains Mono',monospace;">
+          <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px;">
+            <span style="color:#94a3b8; font-family:sans-serif; font-size:12px;">🗓️ Upload Target:</span>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <strong style="color:#c7d2fe; font-size:13.5px;" id="next-upload-display">{{ (schedule.next_upload_at|string)[:16].replace('T',' ') }} UTC</strong>
+              <span id="upload-local-pill" style="font-size:11px; color:#94a3b8; font-family:sans-serif; background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px;"></span>
+            </div>
+          </div>
+
+          {% if schedule.next_process_at %}
+          <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px;">
+            <span style="color:#fbbf24; font-family:sans-serif; font-size:12px; display:flex; align-items:center; gap:4px;">
+              <span>⚡</span> Processing starts:
+            </span>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="color:#fde68a; font-size:12px;" id="next-process-display">{{ (schedule.next_process_at|string)[:16].replace('T',' ') }} UTC</span>
+              <span id="process-countdown-tag" style="font-size:11px; font-family:sans-serif; font-weight:600; padding:2px 7px; border-radius:4px;"></span>
+            </div>
+          </div>
+          {% endif %}
+
+          {% if scheduled_video %}
+          <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.06); font-family:sans-serif;">
+            <span style="color:#a5b4fc; font-size:12px; display:flex; align-items:center; gap:5px;">
+              <span>📹</span> Uploading Video:
+            </span>
+            <strong style="color:#ffffff; font-size:13px; max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{{ scheduled_video.title }}">
+              {{ scheduled_video.title }}
+            </strong>
+          </div>
+          {% else %}
+          <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.06); font-family:sans-serif;">
+            <span style="color:#f87171; font-size:12px;">⚠️ No active video selected for this channel.</span>
+            <a href="/api/videos" style="color:#60a5fa; font-size:12px; text-decoration:underline;">Choose Video →</a>
+          </div>
+          {% endif %}
+
+          <!-- 🖼️ Auto-Selected Thumbnail Preview in Next Scheduled Upload Card -->
+          <div style="padding-top:10px; border-top:1px solid rgba(255,255,255,0.06); font-family:sans-serif;" id="card-next-thumb-container">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; flex-wrap:wrap; gap:6px;">
+              <span style="color:#38bdf8; font-size:12px; display:flex; align-items:center; gap:5px; font-weight:600;">
+                <span>🖼️</span> Auto-Selected Thumbnail:
+              </span>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span id="card-thumb-badge" class="badge badge-info" style="font-size:10.5px; padding:2px 7px;">
+                  {% if schedule.thumbnail_mode == 'random' %}🎲 Auto-Random{% else %}📋 Auto-Rotate #{{ ((schedule.thumbnail_index or 0) % (channel_thumbnails|length if channel_thumbnails else 1)) + 1 }}{% endif %}
+                </span>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="rotateOrAutoSelectThumb()" style="padding:2px 8px; font-size:11px; height:auto; color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px;" title="Auto-select next thumbnail from stock">
+                  🔄 Auto-Select Next
+                </button>
+              </div>
+            </div>
+
+            <div id="card-thumb-preview-card" style="display:flex; gap:12px; align-items:center; background:rgba(15,23,42,0.65); padding:10px 12px; border-radius:8px; border:1px solid rgba(56,189,248,0.25);">
+              <div style="width:120px; min-width:120px; aspect-ratio:16/9; background:#000; border-radius:6px; overflow:hidden; border:1px solid rgba(255,255,255,0.15); box-shadow:0 2px 8px rgba(0,0,0,0.5); position:relative;">
+                <img id="card-thumb-img" src="{{ next_thumbnail.web_url if next_thumbnail else '' }}" alt="Next Thumbnail" style="width:100%; height:100%; object-fit:cover; display:{% if next_thumbnail %}block{% else %}none{% endif %};" onerror="this.style.display='none'; document.getElementById('card-thumb-placeholder').style.display='flex';" />
+                <div id="card-thumb-placeholder" style="width:100%; height:100%; display:{% if next_thumbnail %}none{% else %}flex{% endif %}; align-items:center; justify-content:center; background:rgba(30,41,59,0.8); color:#94a3b8; font-size:22px;">
+                  🖼️
+                </div>
+              </div>
+              <div style="flex:1; min-width:0;">
+                <div id="card-thumb-name" style="color:#ffffff; font-size:13px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{{ next_thumbnail.filename if next_thumbnail else 'Auto-extract frame from video' }}">
+                  {{ next_thumbnail.filename if next_thumbnail else 'Auto-extract frame from video' }}
+                </div>
+                <div id="card-thumb-meta" style="color:#94a3b8; font-size:11.5px; margin-top:2px;">
+                  {% if next_thumbnail %}
+                    {{ next_thumbnail.width }}×{{ next_thumbnail.height }} · {{ (next_thumbnail.file_size_bytes / 1024)|round(1) }} KB
+                  {% else %}
+                    Captures 1280×720 HD frame from queued video
+                  {% endif %}
+                </div>
+                <div style="margin-top:5px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                  <a href="/api/thumbnails?channel_id={{ selected_channel_id }}" style="color:#38bdf8; font-size:11px; text-decoration:underline;">
+                    Stock pool ({{ channel_thumbnails|length }}) →
+                  </a>
+                  {% if scheduled_video %}
+                  <button type="button" onclick="extractVideoThumbNow()" style="background:none; border:none; color:#a5b4fc; font-size:11px; cursor:pointer; text-decoration:underline; padding:0;">
+                    📸 Auto-Capture Frame
+                  </button>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ Pipeline Stepper Bar ═══ -->
+        <div style="margin:14px 0 10px; height:1px; background:rgba(255,255,255,0.08);"></div>
+        
+        <div style="margin-bottom:10px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <div style="font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:#94a3b8; font-weight:700; display:flex; align-items:center; gap:5px;">
+              <span>⚡</span> Upload Pipeline Process
+            </div>
+            <div id="card-pipeline-status-text" style="font-size:11px; color:#38bdf8; font-weight:600; font-family:'JetBrains Mono',monospace;">
+              {% if latest_waiting_release %}
+                🔒 Pre-Upload Ready &bull; Waiting Release
+              {% elif active_progress and active_progress.active %}
+                ⚙️ In Progress ({{ active_progress.percent }}%)
+              {% else %}
+                Scheduled &bull; Auto-runs on time
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- 5-Step Process Stepper -->
+          <div id="card-pipeline-stepper" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(95px, 1fr)); gap:6px; font-size:11px;">
+            <!-- Step 1: Overlays -->
+            <div id="card-step-1" style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:6px 8px; display:flex; align-items:center; gap:6px; color:#94a3b8; transition:all 0.2s;">
+              <span id="card-step-1-icon" style="font-size:12px;">🎬</span>
+              <div style="min-width:0; overflow:hidden;">
+                <div style="font-weight:700; font-size:10.5px; white-space:nowrap; text-overflow:ellipsis;">1. Overlays</div>
+                <div id="card-step-1-sub" style="font-size:9px; color:#64748b;">FFmpeg edit</div>
+              </div>
+            </div>
+
+            <!-- Step 2: Thumbnail -->
+            <div id="card-step-2" style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:6px 8px; display:flex; align-items:center; gap:6px; color:#94a3b8; transition:all 0.2s;">
+              <span id="card-step-2-icon" style="font-size:12px;">🖼️</span>
+              <div style="min-width:0; overflow:hidden;">
+                <div style="font-weight:700; font-size:10.5px; white-space:nowrap; text-overflow:ellipsis;">2. Thumbnail</div>
+                <div id="card-step-2-sub" style="font-size:9px; color:#64748b;">Auto-rotate</div>
+              </div>
+            </div>
+
+            <!-- Step 3: Pre-Upload to YouTube -->
+            <div id="card-step-3" style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:6px 8px; display:flex; align-items:center; gap:6px; color:#94a3b8; transition:all 0.2s;">
+              <span id="card-step-3-icon" style="font-size:12px;">🚀</span>
+              <div style="min-width:0; overflow:hidden;">
+                <div style="font-weight:700; font-size:10.5px; white-space:nowrap; text-overflow:ellipsis;">3. Pre-Upload</div>
+                <div id="card-step-3-sub" style="font-size:9px; color:#64748b;">To YouTube</div>
+              </div>
+            </div>
+
+            <!-- Step 4: Waiting to Release -->
+            <div id="card-step-4" style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:6px 8px; display:flex; align-items:center; gap:6px; color:#94a3b8; transition:all 0.2s;">
+              <span id="card-step-4-icon" style="font-size:12px;">⏳</span>
+              <div style="min-width:0; overflow:hidden;">
+                <div style="font-weight:700; font-size:10.5px; white-space:nowrap; text-overflow:ellipsis;">4. Waiting</div>
+                <div id="card-step-4-sub" style="font-size:9px; color:#64748b;">Private on YT</div>
+              </div>
+            </div>
+
+            <!-- Step 5: Public & Discord -->
+            <div id="card-step-5" style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:6px 8px; display:flex; align-items:center; gap:6px; color:#94a3b8; transition:all 0.2s;">
+              <span id="card-step-5-icon" style="font-size:12px;">📢</span>
+              <div style="min-width:0; overflow:hidden;">
+                <div style="font-weight:700; font-size:10.5px; white-space:nowrap; text-overflow:ellipsis;">5. Release</div>
+                <div id="card-step-5-sub" style="font-size:9px; color:#64748b;">Public & Discord</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ Live Dynamic Progress Section (How much completed & How much left) ═══ -->
+        <div id="card-pipeline-progress" style="display:{% if active_progress and active_progress.active %}block{% else %}none{% endif %}; background:rgba(10,15,30,0.85); border:1px solid rgba(99,102,241,0.3); border-radius:10px; padding:12px 14px; margin-top:10px; box-shadow:inset 0 1px 4px rgba(0,0,0,0.5);">
+          <!-- Top Row: Stage Description & Percentage Badges -->
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
+            <div style="display:flex; align-items:center; gap:7px;">
+              <span id="card-prog-spinner" style="display:inline-block; font-size:13px; animation:spin 1.2s linear infinite;">⚙️</span>
+              <strong id="card-prog-stage-label" style="font-size:12.5px; color:#ffffff;">
+                {{ active_progress.stage_label if active_progress and active_progress.stage_label else 'Ready & Scheduled' }}
+              </strong>
+            </div>
+
+            <!-- Completed & Remaining Badges -->
+            <div style="display:flex; align-items:center; gap:6px; font-family:'JetBrains Mono',monospace;">
+              <span id="card-prog-completed-badge" style="background:rgba(16,185,129,0.18); border:1px solid rgba(16,185,129,0.45); color:#34d399; font-weight:800; font-size:11.5px; padding:2px 8px; border-radius:6px;">
+                <span id="card-prog-pct">{{ active_progress.percent if active_progress else 0 }}%</span> Completed
+              </span>
+              <span id="card-prog-left-badge" style="background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.4); color:#38bdf8; font-weight:800; font-size:11.5px; padding:2px 8px; border-radius:6px;">
+                <span id="card-prog-left-pct">{{ (100 - active_progress.percent) if active_progress else 100 }}%</span> Left
+              </span>
+            </div>
+          </div>
+
+          <!-- High-Precision Animated Glowing Progress Bar -->
+          <div style="position:relative; width:100%; height:13px; background:#0b1120; border-radius:8px; overflow:hidden; border:1px solid rgba(255,255,255,0.12); margin-bottom:8px; box-shadow:inset 0 1px 3px rgba(0,0,0,0.7);">
+            <div id="card-prog-fill" style="width:{{ active_progress.percent if active_progress else 0 }}%; height:100%; background:linear-gradient(90deg, #f59e0b, #3b82f6, #10b981); border-radius:8px; transition:width 0.35s cubic-bezier(0.4, 0, 0.2, 1); box-shadow:0 0 14px rgba(56,189,248,0.7); position:relative;">
+              <div style="position:absolute; right:0; top:0; bottom:0; width:6px; background:#ffffff; border-radius:8px; opacity:0.85;"></div>
+            </div>
+          </div>
+
+          <!-- Bottom Stats Row: Transferred MB, Speed, Time Remaining / ETA -->
+          <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#94a3b8; font-family:'JetBrains Mono',monospace; flex-wrap:wrap; gap:6px;">
+            <div style="display:flex; align-items:center; gap:5px;">
+              <span>📦 Uploaded:</span>
+              <strong id="card-stat-mb" style="color:#f8fafc;">
+                {{ active_progress.uploaded_mb if active_progress else 0.0 }} / {{ active_progress.total_mb if active_progress else 0.0 }} MB
+              </strong>
+            </div>
+            <div style="display:flex; align-items:center; gap:5px;">
+              <span>⚡ Speed:</span>
+              <strong id="card-stat-speed" style="color:#38bdf8;">
+                {{ active_progress.speed_mb if active_progress and active_progress.speed_mb > 0 else 0.0 }} MB/s
+              </strong>
+            </div>
+            <div style="display:flex; align-items:center; gap:5px;">
+              <span>⏱️ ETA:</span>
+              <strong id="card-stat-eta" style="color:#fbbf24;">
+                on schedule
+              </strong>
+            </div>
+          </div>
+
+          <!-- Live Burned Overlays Details (Username & Password Codes) -->
+          <div id="card-burned-edit-details" style="display:{% if active_progress and active_progress.overlay_username %}flex{% else %}none{% endif %}; background:rgba(0,0,0,0.45); border:1px solid rgba(255,255,255,0.1); border-radius:6px; padding:7px 10px; margin-top:10px; font-size:11.5px; align-items:center; gap:12px; flex-wrap:wrap;">
+            <div style="color:#fbbf24; font-weight:700; display:flex; align-items:center; gap:5px;">
+              <span>🎬</span> <span>Burned Overlays:</span>
+            </div>
+            <div style="color:#cbd5e1; display:flex; align-items:center; gap:4px;">
+              <span>👤 User:</span>
+              <code id="card-edit-user" style="color:#38bdf8; font-weight:800; background:rgba(56,189,248,0.15); padding:1px 6px; border-radius:4px; font-family:'JetBrains Mono',monospace;">{{ active_progress.overlay_username if active_progress and active_progress.overlay_username else '—' }}</code>
+            </div>
+            <div style="color:#cbd5e1; display:flex; align-items:center; gap:4px;">
+              <span>🔑 Pass:</span>
+              <code id="card-edit-pass" style="color:#4ade80; font-weight:800; background:rgba(74,222,128,0.15); padding:1px 6px; border-radius:4px; font-family:'JetBrains Mono',monospace;">{{ active_progress.overlay_password if active_progress and active_progress.overlay_password else '—' }}</code>
+            </div>
+            <div style="color:#cbd5e1; display:flex; align-items:center; gap:4px;">
+              <span>⏱️ Burn Time:</span>
+              <span id="card-edit-time" style="color:#fde68a; font-weight:600; font-family:'JetBrains Mono',monospace;">{{ active_progress.overlay_burn_time if active_progress and active_progress.overlay_burn_time else '—' }}</span>
+            </div>
+            <div style="color:#cbd5e1; display:flex; align-items:center; gap:4px; margin-left:auto;">
+              <a href="/api/license-auth" target="_blank" style="display:inline-flex; align-items:center; gap:4px; color:#4ade80; font-size:11px; font-weight:700; background:rgba(34,197,94,0.15); border:1px solid rgba(34,197,94,0.3); padding:2px 7px; border-radius:4px; text-decoration:none;">
+                <span>🔑</span> LicenseAuth User Active ↗
+              </a>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ═══ "Waiting to Release" Panel & Video Preview ═══ -->
+        <div id="card-waiting-release-panel" style="display:{% if latest_waiting_release %}block{% else %}none{% endif %}; background:linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,23,42,0.95)); border:1px solid rgba(245,158,11,0.55); border-radius:10px; padding:14px 16px; margin-top:12px; box-shadow:0 8px 24px rgba(0,0,0,0.45);">
+          <!-- Panel Header -->
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+            <div style="font-weight:700; color:#fbbf24; font-size:13px; display:flex; align-items:center; gap:6px;">
+              <span>⏱️</span> PRE-UPLOAD COMPLETE &bull; WAITING FOR SCHEDULED RELEASE
+            </div>
+            <div style="display:inline-flex; align-items:center; gap:5px; background:rgba(245,158,11,0.2); border:1px solid rgba(245,158,11,0.45); color:#fde68a; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700;">
+              <span>🔒</span> Private on YouTube
+            </div>
+          </div>
+
+          <!-- Video Preview Box -->
+          <div style="display:flex; gap:12px; align-items:center; background:rgba(0,0,0,0.35); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px; margin-bottom:12px; flex-wrap:wrap;">
+            <!-- Thumbnail preview -->
+            <div style="position:relative; width:130px; aspect-ratio:16/9; background:#0b1120; border-radius:6px; overflow:hidden; border:1px solid rgba(255,255,255,0.15); flex-shrink:0;">
+              <img id="wr-thumb-img" src="{{ latest_waiting_release.thumbnail_display_url if latest_waiting_release and latest_waiting_release.thumbnail_display_url else (next_thumbnail.web_url if next_thumbnail else '') }}" alt="Video preview" style="width:100%; height:100%; object-fit:cover; display:block;" onerror="if (this.dataset.fallbackApplied !== '1' && '{{ next_thumbnail.web_url if next_thumbnail else '' }}') { this.dataset.fallbackApplied = '1'; this.src = '{{ next_thumbnail.web_url if next_thumbnail else '' }}'; } else { this.style.display='none'; this.nextElementSibling.style.display='flex'; }" />
+              <div style="display:none; width:100%; height:100%; align-items:center; justify-content:center; background:linear-gradient(135deg,#1e1b4b,#0f172a); color:#a5b4fc; font-size:1.4rem;">🎬</div>
+              <div style="position:absolute; inset:0; background:rgba(0,0,0,0.3); display:flex; align-items:center; justify-content:center; opacity:0.85;">
+                <span style="font-size:22px; filter:drop-shadow(0 2px 4px rgba(0,0,0,0.8));">▶️</span>
+              </div>
+            </div>
+
+            <!-- Details -->
+            <div style="flex:1; min-width:180px;">
+              <div id="wr-title-text" style="font-weight:700; font-size:13.5px; color:#ffffff; margin-bottom:4px; word-break:break-word;">
+                {{ latest_waiting_release.video_title if latest_waiting_release else (scheduled_video.title if scheduled_video else 'Uploaded Video') }}
+              </div>
+              <div style="font-size:11px; color:#94a3b8; display:flex; flex-direction:column; gap:3px;">
+                <div>📺 Status: <b style="color:#fbbf24;">Uploaded & Stored as Private</b></div>
+                <div>🔗 YouTube Link: <a id="wr-link-anchor" href="{{ latest_waiting_release.youtube_url if latest_waiting_release else '#' }}" target="_blank" style="color:#60a5fa; text-decoration:underline; font-weight:700;">{{ latest_waiting_release.youtube_url if latest_waiting_release else 'Pending link' }} ↗</a></div>
+                <div id="wr-burned-codes" style="margin-top:4px; display:{% if latest_waiting_release and latest_waiting_release.overlay_username %}inline-flex{% else %}none{% endif %}; align-items:center; gap:8px; background:rgba(0,0,0,0.5); padding:2px 8px; border-radius:4px; font-size:11px; border:1px solid rgba(255,255,255,0.08); font-family:'JetBrains Mono',monospace;">
+                  <span>👤 User: <b id="wr-edit-user" style="color:#38bdf8;">{{ latest_waiting_release.overlay_username if latest_waiting_release else '—' }}</b></span>
+                  <span>🔑 Pass: <b id="wr-edit-pass" style="color:#4ade80;">{{ latest_waiting_release.overlay_password if latest_waiting_release else '—' }}</b></span>
+                  <span id="wr-edit-time" style="color:#fde68a;">{{ latest_waiting_release.overlay_burn_time if latest_waiting_release else '' }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Big Countdown Box until Release -->
+          <div style="text-align:center; padding:12px; background:rgba(10,15,30,0.9); border-radius:8px; border:1px solid rgba(245,158,11,0.3); margin-bottom:12px;">
+            <div style="font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:#94a3b8; font-weight:700; margin-bottom:3px;">
+              ⏳ Releasing Publicly & Posting Discord Alert in
+            </div>
+            <div id="wr-countdown-clock" style="font-family:'JetBrains Mono',monospace; font-size:2rem; font-weight:800; color:#fbbf24; text-shadow:0 0 14px rgba(245,158,11,0.5); line-height:1.1;">
+              {% if time_until_upload and not time_until_upload.is_due %}
+                {% if time_until_upload.hours > 0 %}{{ '%02d:%02d:%02d'|format(time_until_upload.hours, time_until_upload.minutes, time_until_upload.seconds) }}{% else %}{{ '%02d:%02d'|format(time_until_upload.minutes, time_until_upload.seconds) }}{% endif %}
+              {% else %}
+                --:--
+              {% endif %}
+            </div>
+            <div id="wr-release-target-hint" style="font-size:11px; color:#cbd5e1; margin-top:4px;">
+              Scheduled Target: <b style="color:#c7d2fe;" id="wr-target-time-text">{{ (schedule.next_upload_at|string)[:16].replace('T',' ') }} UTC</b>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+            <button type="button" id="wr-release-btn" onclick="executeCardReleaseNow()" class="btn" style="flex:1; font-weight:800; font-size:13px; background:linear-gradient(135deg, #f59e0b, #d97706); border:none; color:#ffffff; padding:10px 14px; border-radius:6px; cursor:pointer; box-shadow:0 2px 10px rgba(245,158,11,0.4); display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+              ⚡ Release Now & Post to Discord (Skip Wait)
+            </button>
+            <a id="wr-watch-btn" href="{{ latest_waiting_release.youtube_url if latest_waiting_release else '#' }}" target="_blank" class="btn btn-sm btn-ghost" style="font-size:12px; border:1px solid rgba(255,255,255,0.15); display:inline-flex; align-items:center; gap:5px;">
+              ▶️ Watch on YouTube
+            </a>
+          </div>
+        </div>
+
+        <!-- ═══ Pre-Upload Quick Trigger (when not currently in progress or waiting) ═══ -->
+        <div id="card-pre-upload-trigger" style="display:{% if not latest_waiting_release and (not active_progress or not active_progress.active) %}flex{% else %}none{% endif %}; justify-content:space-between; align-items:center; margin-top:12px; padding-top:10px; border-top:1px dashed rgba(255,255,255,0.08); flex-wrap:wrap; gap:8px;">
+          <div style="font-size:11.5px; color:#94a3b8; display:flex; align-items:center; gap:5px;">
+            <span>💡</span>
+            <span>Want to edit & pre-upload to YouTube beforehand right now?</span>
+          </div>
+          <button type="button" id="card-preflight-btn" onclick="triggerCardPreflight()" class="btn btn-sm" style="font-size:11.5px; font-weight:700; background:rgba(99,102,241,0.22); border:1px solid rgba(99,102,241,0.5); color:#c7d2fe; display:inline-flex; align-items:center; gap:6px; cursor:pointer; padding:5px 12px; border-radius:6px;" title="Renders overlays and uploads to YouTube beforehand as Private, then waits for scheduled release time">
+            ⚡ Start Edit & Pre-Upload Now
+          </button>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Action Buttons -->
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button type="button" id="save-btn" onclick="saveConfig()" class="btn btn-primary" style="flex:1; font-weight:700; letter-spacing:.04em;">
+          <span id="save-icon">💾</span> Save Schedule
+        </button>
+        <button type="button" onclick="openTestScheduleModal()" class="btn" style="font-weight:700; background:linear-gradient(135deg, #f59e0b, #d97706); border:none; color:#ffffff; box-shadow:0 2px 10px rgba(245,158,11,0.3); display:inline-flex; align-items:center; gap:6px; cursor:pointer;" title="Run full scheduled pipeline right now to test">
+          ⚡ Test Schedule (Run Now)
+        </button>
+        {% if schedule.is_active %}
+        <button type="button" onclick="pauseSched()" class="btn btn-ghost" style="font-weight:600;">⏸ Pause</button>
+        {% else %}
+        <button type="button" onclick="resumeSched()" class="btn btn-ghost" style="font-weight:600; color:#10b981;">▶️ Resume</button>
+        {% endif %}
+        <button type="button" onclick="deleteSchedule()" class="btn btn-danger" style="font-weight:600;" title="Delete this schedule permanently">
+          🗑️ Delete
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- ═══ Upload History Card ═══ -->
+  <div class="card">
+    <div class="card-header" style="border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:14px;">
+      <div class="card-title" style="font-size:15px; font-weight:700;">📜 Upload History</div>
+      <div style="font-size:12px; color:#64748b;">{{ history|length if history else 0 }} records</div>
+    </div>
+
+    {% if history %}
+    <div class="table-wrapper" style="overflow-x:auto;">
+      <table style="width:100%; border-collapse:separate; border-spacing:0;">
+        <thead>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.08); text-align:left;">
+            <th style="padding:10px 14px; min-width:300px; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:#64748b;">Video</th>
+            <th style="padding:10px 14px; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:#64748b;">Notices</th>
+            <th style="padding:10px 14px; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:#64748b;">Visibility</th>
+            <th style="padding:10px 14px; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:#64748b;">Date</th>
+            <th style="padding:10px 14px; text-align:right; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:#64748b;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for h in history %}
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04); transition:background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.025)'" onmouseout="this.style.background='transparent'">
+            <!-- Video Column -->
+            <td style="padding:12px 14px;">
+              <div style="display:flex; align-items:center; gap:12px;">
+                <div style="position:relative; width:100px; min-width:100px; aspect-ratio:16/9; background:#0f172a; border-radius:6px; overflow:hidden; border:1px solid rgba(255,255,255,0.1); flex-shrink:0;">
+                  {% if h.thumbnail_display_url %}
+                    <img src="{{ h.thumbnail_display_url }}" alt="{{ h.video_title }}" style="width:100%; height:100%; object-fit:cover; display:block;" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                    <div style="display:none; width:100%; height:100%; align-items:center; justify-content:center; background:#1e293b; color:#94a3b8; font-size:1.1rem;">🎬</div>
+                  {% else %}
+                    <div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,#1e1b4b,#0f172a); color:#64748b; font-size:1.2rem;">🎬</div>
+                  {% endif %}
+                  {% if h.status in ('uploading', 'processing') %}
+                  <div style="position:absolute; inset:0; background:rgba(0,0,0,0.65); display:flex; align-items:center; justify-content:center;">
+                    <span style="font-size:15px; animation:spin 1.2s linear infinite; display:inline-block;">⚙️</span>
+                  </div>
+                  {% endif %}
+                </div>
+                <div style="display:flex; flex-direction:column; gap:4px; overflow:hidden; min-width:0;">
+                  <div style="font-weight:700; font-size:13px; color:#f8fafc; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; max-width:300px;">
+                    {% if h.youtube_url %}
+                      <a href="{{ h.youtube_url }}" target="_blank" style="color:#f8fafc; text-decoration:none;" onmouseover="this.style.color='#60a5fa'" onmouseout="this.style.color='#f8fafc'">{{ h.video_title or 'Untitled Video' }}</a>
+                    {% else %}
+                      {{ h.video_title or 'Untitled Video' }}
+                    {% endif %}
+                  </div>
+                  <div style="font-size:11px; display:flex; align-items:center; gap:5px; flex-wrap:wrap;">
+                    {% if h.status == 'success' %}
+                      <span style="color:#10b981;">✓</span>
+                      <span style="color:#94a3b8;">YT:</span>
+                      <code style="color:#60a5fa; font-family:'JetBrains Mono',monospace; font-size:10px;">{{ h.youtube_video_id }}</code>
+                    {% elif h.status == 'uploading' %}
+                      <span style="color:#60a5fa; animation:spin 1.2s linear infinite; display:inline-block;">⚙️</span>
+                      <span style="color:#60a5fa; font-weight:600;">Uploading to YouTube...</span>
+                    {% elif h.status == 'processing' %}
+                      <span style="color:#eab308; font-weight:600;">⬆ Processing...</span>
+                    {% elif h.status == 'failed' %}
+                      <span style="color:#ef4444;">❌ {{ (h.error_message or 'Error')[:50] }}</span>
+                    {% else %}
+                      <span style="color:#94a3b8;">{{ h.status }}</span>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            </td>
+            <!-- Notices -->
+            <td style="padding:12px 14px; font-size:12px; color:#94a3b8;">
+              {% if h.status == 'success' %}<span style="color:#64748b;">📄 Checks soon</span>
+              {% elif h.status in ('uploading','processing') %}<span style="color:#60a5fa;">⏳ Pending</span>
+              {% else %}<span style="color:#475569;">—</span>{% endif %}
+            </td>
+            <!-- Visibility -->
+            <td style="padding:12px 14px;">
+              {% if h.status == 'success' %}
+                <div style="display:inline-flex; align-items:center; gap:5px; background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.25); color:#4ade80; padding:3px 9px; border-radius:6px; font-size:11px; font-weight:600;">🔒 Unlisted</div>
+              {% elif h.status in ('uploading','processing') %}
+                <div style="display:inline-flex; align-items:center; gap:5px; background:rgba(59,130,246,0.1); border:1px solid rgba(59,130,246,0.25); color:#93c5fd; padding:3px 9px; border-radius:6px; font-size:11px; font-weight:600;">🕒 Pending</div>
+              {% else %}
+                <div style="display:inline-flex; align-items:center; gap:5px; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.25); color:#fca5a5; padding:3px 9px; border-radius:6px; font-size:11px; font-weight:600;">❌ Failed</div>
+              {% endif %}
+            </td>
+            <!-- Date -->
+            <td style="padding:12px 14px; font-size:11.5px; color:#94a3b8; font-family:'JetBrains Mono',monospace;">
+              {% set h_dt = (h.completed_at or h.created_at or '')|string %}
+              <div>{{ h_dt[:10] }}</div>
+              <div style="font-size:10px; color:#475569;">{{ h_dt[11:19] }}</div>
+            </td>
+            <!-- Actions -->
+            <td style="padding:12px 14px; text-align:right;">
+              <div style="display:inline-flex; align-items:center; gap:5px;">
+                {% if h.youtube_url %}
+                <a href="{{ h.youtube_url }}" target="_blank" class="btn btn-yt btn-sm" style="font-size:11px; padding:3px 8px;">▶ Watch</a>
+                {% endif %}
+                {% if h.youtube_video_id %}
+                <a href="https://studio.youtube.com/video/{{ h.youtube_video_id }}/edit" target="_blank" class="btn btn-ghost btn-sm" style="font-size:11px; padding:3px 8px; color:#94a3b8;">🛠️ Studio</a>
+                {% endif %}
+                <button type="button" class="btn btn-danger btn-sm" onclick="deleteUploadHistory({{ h.id }}, '{{ h.video_title or 'this video' }}', '{{ h.youtube_video_id or '' }}')" style="font-size:11px; padding:3px 8px;">🗑️</button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-muted text-sm" style="padding:40px 0; text-align:center; color:#475569;">No upload history for this channel yet.</p>
+    {% endif %}
+  </div>
+
+</div>
+
+{% elif selected_channel_id %}
+<!-- ═══ Create New Schedule ═══ -->
+<div style="max-width:480px; margin:0 auto;">
+  <div class="card" style="border:1px dashed rgba(99,102,241,0.3); background:rgba(99,102,241,0.04);">
+    <div class="card-header" style="border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:14px;">
+      <div class="card-title" style="font-size:15px; font-weight:700;">➕ Create Upload Schedule</div>
+      <span style="font-size:11px; color:#64748b;">No schedule yet</span>
+    </div>
+    <form id="create-form" style="padding-top:12px;">
+      <div class="form-group" style="margin-bottom:18px;">
+        <label class="form-label" style="font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:#94a3b8;">🌍 Timezone</label>
+        <select name="timezone_str" class="form-control" style="font-size:14px;">
+          <optgroup label="🇮🇳 India">
+            <option value="Asia/Kolkata" selected>Asia/Kolkata (IST, UTC+5:30)</option>
+          </optgroup>
+          <optgroup label="🇧🇩 Bangladesh">
+            <option value="Asia/Dhaka">Asia/Dhaka (BDT, UTC+6)</option>
+          </optgroup>
+          <optgroup label="🌐 Other">
+            <option value="UTC">UTC</option>
+            <option value="US/Eastern">US/Eastern</option>
+            <option value="Europe/London">Europe/London</option>
+          </optgroup>
+        </select>
+      </div>
+
+      <!-- Target Date in Create Form -->
+      <div class="form-group" style="margin-bottom:16px;">
+        <label class="form-label" style="font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:#94a3b8;">📅 Target Day</label>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <label style="cursor:pointer; display:flex; align-items:center; gap:5px; background:rgba(99,102,241,0.15); border:1px solid #818cf8; border-radius:6px; padding:6px 12px; font-size:12px; color:#ffffff;">
+            <input type="radio" name="target_date" value="today" checked style="accent-color:#818cf8;"> ☀️ Today
+          </label>
+          <label style="cursor:pointer; display:flex; align-items:center; gap:5px; background:rgba(30,41,59,0.6); border:1px solid rgba(255,255,255,0.1); border-radius:6px; padding:6px 12px; font-size:12px; color:#cbd5e1;">
+            <input type="radio" name="target_date" value="tomorrow" style="accent-color:#818cf8;"> 🌙 Tomorrow
+          </label>
+          <label style="cursor:pointer; display:flex; align-items:center; gap:5px; background:rgba(30,41,59,0.6); border:1px solid rgba(255,255,255,0.1); border-radius:6px; padding:6px 12px; font-size:12px; color:#cbd5e1;">
+            <input type="radio" name="target_date" value="auto" style="accent-color:#818cf8;"> 🔄 Auto
+          </label>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:18px;">
+        <label class="form-label" style="font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:#94a3b8;">⏰ Upload Time</label>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <select name="upload_hour" id="create-upload-hour" class="form-control" style="font-size:16px; font-weight:700; color:#c7d2fe; width:80px; text-align:center;">
+            {% for h in range(0, 24) %}
+            <option value="{{ h }}" {% if h == 1 %}selected{% endif %}>{{ '%02d' % h }}</option>
+            {% endfor %}
+          </select>
+          <span style="font-size:22px; font-weight:900; color:#818cf8;">:</span>
+          <select name="upload_minute" id="create-upload-minute" class="form-control" style="font-size:16px; font-weight:700; color:#c7d2fe; width:80px; text-align:center;">
+            {% for m in range(0, 60) %}
+            <option value="{{ m }}">{{ '%02d' % m }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <!-- Quick presets -->
+        <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;">
+          {% for label, h in [('1 AM', 1), ('2 AM', 2), ('6 AM', 6), ('8 AM', 8), ('12 PM', 12), ('2 PM', 14), ('6 PM', 18)] %}
+          <button type="button" onclick="document.getElementById('create-upload-hour').value={{ h }}; document.getElementById('create-upload-minute').value=0;" class="btn btn-ghost btn-sm" style="font-size:11px; padding:3px 8px; border:1px solid rgba(255,255,255,0.08);">{{ label }}</button>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:18px;">
+        <label class="form-label" style="font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:#fbbf24;">⚡ Pre-process Lead (minutes)</label>
+        <input class="form-control" type="number" name="pre_process_minutes" value="30" min="0" max="120" step="5"
+          style="width:100px; font-weight:700; font-size:15px; text-align:center; color:#fbbf24;">
+      </div>
+
+      <input type="hidden" name="schedule_mode" value="exact">
+      <button type="button" onclick="createSchedule()" class="btn btn-primary" style="width:100%; font-weight:700; font-size:14px; letter-spacing:.04em; margin-bottom:10px;">
+        ✨ Create Schedule
+      </button>
+      {% if scheduled_video %}
+      <button type="button" onclick="openTestScheduleModal()" class="btn" style="width:100%; font-weight:700; font-size:13px; background:linear-gradient(135deg, #f59e0b, #d97706); border:none; color:#ffffff; box-shadow:0 2px 10px rgba(245,158,11,0.3); display:inline-flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;">
+        ⚡ Test Upload Pipeline Now
+      </button>
+      {% endif %}
+    </form>
+  </div>
+</div>
+{% else %}
+<div class="card" style="border:1px dashed rgba(255,255,255,0.08);">
+  <p class="text-muted text-sm" style="padding:40px 0; text-align:center; color:#475569;">👆 Select a channel above to view and configure its upload schedule.</p>
+</div>
+{% endif %}
+
+<!-- ── Test Schedule Upload Modal ────────────────────────────────────── -->
+<div id="test-schedule-modal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.85); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); align-items:center; justify-content:center; padding:16px;">
+  <div style="background:#0f172a; border:1px solid rgba(245,158,11,0.4); border-radius:14px; width:100%; max-width:560px; box-shadow:0 20px 50px rgba(0,0,0,0.9); overflow:hidden; animation:modalPop 0.22s cubic-bezier(0.16, 1, 0.3, 1);">
+    
+    <!-- Modal Header -->
+    <div style="padding:16px 20px; border-bottom:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center; background:linear-gradient(135deg, rgba(245,158,11,0.15), rgba(99,102,241,0.08));">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span style="font-size:1.5rem;">⚡</span>
+        <div>
+          <h3 style="margin:0; font-size:1.15rem; font-weight:700; color:#ffffff;">Test Scheduled Upload Pipeline</h3>
+          <span style="font-size:11px; color:#94a3b8;">
+            Channel: <b style="color:#f59e0b;">{% for c in channels if c.id == selected_channel_id %}{{ c.name }}{% endfor %}</b>
+            {% if scheduled_video %}
+            &bull; Video: <b style="color:#c7d2fe;">{{ scheduled_video.title }}</b>
+            {% endif %}
+          </span>
+        </div>
+      </div>
+      <button type="button" onclick="closeTestScheduleModal()" style="background:none; border:none; color:#94a3b8; font-size:1.5rem; cursor:pointer; line-height:1; padding:4px 8px;">&times;</button>
+    </div>
+
+    <!-- Modal Body -->
+    <div style="padding:20px;">
+      {% if not scheduled_video %}
+      <div style="background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); border-radius:8px; padding:16px; margin-bottom:16px; color:#fca5a5;">
+        <div style="font-weight:700; font-size:14px; margin-bottom:4px;">⚠️ No Video Configured</div>
+        <p style="margin:0; font-size:12.5px; color:#fecaca;">
+          You need to select or upload a video for this channel before you can test the upload pipeline.
+        </p>
+      </div>
+      <div style="display:flex; justify-content:flex-end;">
+        <button type="button" class="btn btn-ghost" onclick="closeTestScheduleModal()">Close</button>
+      </div>
+      {% else %}
+      <p style="margin-top:0; margin-bottom:14px; color:#94a3b8; font-size:13px; line-height:1.5;">
+        This triggers the <b>exact scheduled upload process immediately</b>: dynamic overlay codes are burned in with FFmpeg, the thumbnail is rotated/attached, and the video is uploaded to YouTube with real-time tracking.
+      </p>
+
+      <div style="background:rgba(30,41,59,0.7); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:12px 14px; margin-bottom:16px; font-size:12px; color:#cbd5e1; display:flex; flex-direction:column; gap:4px;">
+        <div style="display:flex; justify-content:space-between;">
+          <span style="color:#94a3b8;">Selected Video:</span>
+          <strong style="color:#ffffff;">{{ scheduled_video.title }}</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between;">
+          <span style="color:#94a3b8;">File Size:</span>
+          <span>{{ "%.1f"|format(scheduled_video.file_size_bytes / 1024 / 1024) }} MB</span>
+        </div>
+        <div style="display:flex; justify-content:space-between;">
+          <span style="color:#94a3b8;">Dynamic Overlays:</span>
+          <span>{% if scheduled_video.overlay_username_enabled or scheduled_video.overlay_password_enabled %}✅ Enabled (Random Codes){% else %}Disabled{% endif %}</span>
+        </div>
+      </div>
+
+      <!-- Pre-Upload Lead Time Selector -->
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label" style="font-weight:700; color:#e2e8f0; font-size:13px;">⏱️ Schedule Simulation / Release Lead Time</label>
+        <select id="modal_test_sched_lead" class="form-control" style="font-size:13px;">
+          <option value="5" selected>⏱️ 5 Minutes Before (Pre-upload now as Private &rarr; Auto-release & Discord in 5 min)</option>
+          <option value="2">⚡ 2 Minutes Before (Quick test: Upload &rarr; Release & Discord in 2 min)</option>
+          <option value="1">⚡ 1 Minute Before (Fast test: Upload &rarr; Release & Discord in 1 min)</option>
+          <option value="0">🚀 Immediate (Upload & release right away with Discord post)</option>
+        </select>
+        <span style="display:block; font-size:11px; color:#64748b; margin-top:4px;">
+          The video is uploaded beforehand to YouTube as Private. When time is reached, it automatically releases to Public and sends to Discord.
+        </span>
+      </div>
+
+      <!-- YouTube Privacy on Release -->
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label" style="font-weight:700; color:#e2e8f0; font-size:13px;">🔒 YouTube Privacy Setting on Release</label>
+        <select id="modal_test_sched_privacy" class="form-control" style="font-size:13px;">
+          <option value="public" selected>🌐 Public (Visible immediately to all)</option>
+          <option value="unlisted">🔒 Unlisted (Only people with link can watch)</option>
+          <option value="private">🔐 Private (Only channel owner can watch)</option>
+        </select>
+      </div>
+
+      <!-- Discord Notification Checkbox -->
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px; background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.25); padding:10px 14px; border-radius:8px;">
+        <input type="checkbox" id="modal_test_sched_discord" checked style="width:18px; height:18px; cursor:pointer;" />
+        <label for="modal_test_sched_discord" style="margin:0; cursor:pointer; font-size:13px; color:#c7d2fe; font-weight:600;">
+          📢 Send announcement message to Discord channel when video releases
+        </label>
+      </div>
+
+      <!-- Live Progress & Result Output -->
+      <div id="test-sched-result" style="display:none; padding:14px; border-radius:8px; margin-bottom:16px; font-size:13px; line-height:1.5;"></div>
+
+      <!-- Actions -->
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button type="button" class="btn btn-ghost" onclick="closeTestScheduleModal()" id="modal-test-sched-cancel-btn">Cancel</button>
+        <button type="button" class="btn" id="modal-test-sched-start-btn" onclick="startScheduleTest()" style="display:flex; align-items:center; gap:8px; background:linear-gradient(135deg, #f59e0b, #d97706); color:#fff; border:none; font-weight:700; padding:10px 18px; border-radius:6px; cursor:pointer; box-shadow:0 2px 10px rgba(245, 158, 11, 0.35);">
+          ⚡ Run Test Upload Now
+        </button>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<style>
+@keyframes modalPop {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes pulse {
+  0%, 100% { opacity:1; }
+  50% { opacity:.4; }
+}
+@keyframes spin {
+  to { transform:rotate(360deg); }
+}
+.mode-active {
+  background: rgba(99,102,241,0.2) !important;
+  border-color: rgba(99,102,241,0.6) !important;
+}
+.mode-active div:first-child { color:#c7d2fe !important; }
+</style>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Ensure YTBot and getTimeRemaining are available even if browser cached previous main.js
+  window.YTBot = window.YTBot || {};
+  if (typeof window.YTBot.parseTargetDate !== 'function') {
+    window.YTBot.parseTargetDate = function(target) {
+      if (!target) return null;
+      if (target instanceof Date) return target;
+      let str = String(target).trim();
+      if (!str.includes('T') && str.includes(' ')) str = str.replace(' ', 'T');
+      if (!str.endsWith('Z') && !/[+-]\d{2}(:?\d{2})?$/.test(str)) str = str + 'Z';
+      const d = new Date(str);
+      return isNaN(d.getTime()) ? new Date(target) : d;
+    };
+  }
+  if (typeof window.YTBot.getTimeRemaining !== 'function') {
+    window.YTBot.getTimeRemaining = function(targetISOString) {
+      const target = window.YTBot.parseTargetDate(targetISOString);
+      if (!target || isNaN(target.getTime())) {
+        return { totalSeconds: 0, days: 0, hours: 0, minutes: 0, seconds: 0, isDue: false, formatted: '—', formattedShort: '--:--:--', formattedLong: 'Not scheduled' };
+      }
+      const now = Date.now();
+      const diffMs = target.getTime() - now;
+      const totalSeconds = Math.floor(diffMs / 1000);
+      if (totalSeconds <= 0) {
+        return { totalSeconds, days: 0, hours: 0, minutes: 0, seconds: 0, isDue: true, formatted: 'Due now', formattedShort: '00:00:00', formattedLong: 'Due now / Ready to upload' };
+      }
+      const days = Math.floor(totalSeconds / 86400);
+      const remSec = totalSeconds % 86400;
+      const hours = Math.floor(remSec / 3600);
+      const minutes = Math.floor((remSec % 3600) / 60);
+      const seconds = remSec % 60;
+      const parts = [];
+      if (days > 0) parts.push(`${days}d`);
+      if (hours > 0 || days > 0) parts.push(`${hours}h`);
+      if (minutes > 0 || hours > 0 || days > 0) parts.push(`${minutes}m`);
+      parts.push(`${seconds}s`);
+      const formatted = parts.join(' ');
+      const formattedShort = (days > 0 ? `${days}d ` : '') + `${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}`;
+      const longParts = [];
+      if (days > 0) longParts.push(`${days} day${days > 1 ? 's' : ''}`);
+      if (hours > 0) longParts.push(`${hours} hr${hours > 1 ? 's' : ''}`);
+      if (minutes > 0) longParts.push(`${minutes} min${minutes > 1 ? 's' : ''}`);
+      if (seconds > 0 && days === 0) longParts.push(`${seconds} sec${seconds > 1 ? 's' : ''}`);
+      const formattedLong = longParts.length > 0 ? longParts.join(', ') : 'Less than a second';
+      return { totalSeconds, days, hours, minutes, seconds, isDue: false, formatted, formattedShort, formattedLong };
+    };
+  }
+  if (typeof window.YTBot.formatTimeRemaining !== 'function') {
+    window.YTBot.formatTimeRemaining = function(targetISOString) {
+      return window.YTBot.getTimeRemaining(targetISOString).formatted;
+    };
+  }
+
+  const channelId = {{ selected_channel_id or 0 }};
+  const TZ_OFFSETS = {
+    'Asia/Kolkata': 5.5,
+    'Asia/Dhaka': 6,
+    'UTC': 0,
+    'US/Eastern': -5,
+    'US/Pacific': -8,
+    'Europe/London': 0,
+    'Asia/Tokyo': 9,
+    'Australia/Sydney': 10,
+  };
+
+  // ── Real-time clock ──────────────────────────────────────────────────
+  function formatClock(date, tzName) {
+    try {
+      return date.toLocaleTimeString('en-IN', {
+        timeZone: tzName,
+        hour12: true,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        weekday: 'short',
+      });
+    } catch { return '—'; }
+  }
+
+  function tickClock() {
+    const now = new Date();
+    document.getElementById('clock-ist').textContent = formatClock(now, 'Asia/Kolkata');
+    document.getElementById('clock-bdt').textContent = formatClock(now, 'Asia/Dhaka');
+    document.getElementById('clock-utc').textContent = formatClock(now, 'UTC');
+    updateTzCurrentTime();
+  }
+  setInterval(tickClock, 1000);
+  tickClock();
+
+  // ── Timezone change ──────────────────────────────────────────────────
+  function updateTzCurrentTime() {
+    const tzSel = document.getElementById('tz-select');
+    if (!tzSel) return;
+    const tz = tzSel.value;
+    const now = new Date();
+    try {
+      const t = now.toLocaleTimeString('en-IN', { timeZone: tz, hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const el = document.getElementById('tz-current-time');
+      if (el) el.textContent = `Now in ${tz}: ${t}`;
+    } catch {}
+  }
+
+  function onTimezoneChange(val) {
+    updateTzCurrentTime();
+    updateTimePreview();
+  }
+
+  // ── Mode toggle ──────────────────────────────────────────────────────
+  function setMode(mode) {
+    document.getElementById('exact-section').style.display = mode === 'exact' ? 'block' : 'none';
+    document.getElementById('window-section').style.display = mode === 'window' ? 'block' : 'none';
+    // Style the buttons
+    const exactBtn = document.getElementById('mode-exact-btn');
+    const windowBtn = document.getElementById('mode-window-btn');
+    if (mode === 'exact') {
+      exactBtn.style.background = 'rgba(99,102,241,0.2)';
+      exactBtn.style.borderColor = 'rgba(99,102,241,0.6)';
+      windowBtn.style.background = 'rgba(30,41,59,0.6)';
+      windowBtn.style.borderColor = 'rgba(255,255,255,0.08)';
+    } else {
+      windowBtn.style.background = 'rgba(99,102,241,0.2)';
+      windowBtn.style.borderColor = 'rgba(99,102,241,0.6)';
+      exactBtn.style.background = 'rgba(30,41,59,0.6)';
+      exactBtn.style.borderColor = 'rgba(255,255,255,0.08)';
+    }
+  }
+
+  // ── Calendar & Target Date Selection ──────────────────────────────────
+  function setTargetDatePreset(mode) {
+    const input = document.getElementById('target-date-input');
+    const badge = document.getElementById('target-date-display-badge');
+    const calRow = document.getElementById('calendar-input-row');
+    const btnToday = document.getElementById('btn-date-today');
+    const btnTomorrow = document.getElementById('btn-date-tomorrow');
+    const btnCalendar = document.getElementById('btn-date-calendar');
+    const btnAuto = document.getElementById('btn-date-auto');
+
+    // Reset styles
+    [btnToday, btnTomorrow, btnCalendar, btnAuto].forEach(b => {
+      if (b) {
+        b.style.background = 'transparent';
+        b.style.borderColor = 'rgba(255,255,255,0.12)';
+        b.style.color = '#cbd5e1';
+      }
+    });
+
+    if (mode === 'today') {
+      input.value = 'today';
+      if (badge) badge.textContent = '☀️ Today';
+      if (calRow) calRow.style.display = 'none';
+      if (btnToday) {
+        btnToday.style.background = 'rgba(99,102,241,0.3)';
+        btnToday.style.borderColor = '#818cf8';
+        btnToday.style.color = '#ffffff';
+      }
+    } else if (mode === 'tomorrow') {
+      input.value = 'tomorrow';
+      if (badge) badge.textContent = '🌙 Tomorrow';
+      if (calRow) calRow.style.display = 'none';
+      if (btnTomorrow) {
+        btnTomorrow.style.background = 'rgba(99,102,241,0.3)';
+        btnTomorrow.style.borderColor = '#818cf8';
+        btnTomorrow.style.color = '#ffffff';
+      }
+    } else if (mode === 'auto') {
+      input.value = 'auto';
+      if (badge) badge.textContent = '🔄 Daily Auto';
+      if (calRow) calRow.style.display = 'none';
+      if (btnAuto) {
+        btnAuto.style.background = 'rgba(99,102,241,0.3)';
+        btnAuto.style.borderColor = '#818cf8';
+        btnAuto.style.color = '#ffffff';
+      }
+    }
+    updateTimePreview();
+  }
+
+  function toggleCalendarInput() {
+    const calRow = document.getElementById('calendar-input-row');
+    const calInput = document.getElementById('calendar-date-input');
+    const btnCalendar = document.getElementById('btn-date-calendar');
+    const input = document.getElementById('target-date-input');
+    const badge = document.getElementById('target-date-display-badge');
+
+    if (!calInput.value) {
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      calInput.value = `${yyyy}-${mm}-${dd}`;
+      calInput.min = `${yyyy}-${mm}-${dd}`;
+    }
+
+    calRow.style.display = 'flex';
+    input.value = calInput.value;
+    if (badge) badge.textContent = `📅 ${calInput.value}`;
+
+    ['btn-date-today', 'btn-date-tomorrow', 'btn-date-auto'].forEach(id => {
+      const b = document.getElementById(id);
+      if (b) {
+        b.style.background = 'transparent';
+        b.style.borderColor = 'rgba(255,255,255,0.12)';
+        b.style.color = '#cbd5e1';
+      }
+    });
+    if (btnCalendar) {
+      btnCalendar.style.background = 'rgba(99,102,241,0.3)';
+      btnCalendar.style.borderColor = '#818cf8';
+      btnCalendar.style.color = '#ffffff';
+    }
+    updateTimePreview();
+  }
+
+  function onCustomCalendarDateChange(val) {
+    if (!val) return;
+    const input = document.getElementById('target-date-input');
+    const badge = document.getElementById('target-date-display-badge');
+    const hint = document.getElementById('calendar-selected-hint');
+    input.value = val;
+    if (badge) badge.textContent = `📅 ${val}`;
+    if (hint) hint.textContent = `Selected: ${val}`;
+    updateTimePreview();
+  }
+
+  // ── Time picker ──────────────────────────────────────────────────────
+  function setTime(h, m) {
+    document.getElementById('upload-hour').value = h;
+    document.getElementById('upload-minute').value = m;
+    updateTimePreview();
+  }
+
+  function updateTimePreview() {
+    const h = parseInt(document.getElementById('upload-hour')?.value || 14);
+    const m = parseInt(document.getElementById('upload-minute')?.value || 0);
+    const targetDateMode = document.getElementById('target-date-input')?.value || 'today';
+    const suffix = h >= 12 ? 'PM' : 'AM';
+    const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    const timeStr = `${h12}:${String(m).padStart(2,'0')} ${suffix}`;
+
+    const el = document.getElementById('ampm-display');
+    if (el) el.textContent = `= ${timeStr}`;
+
+    const previewEl = document.getElementById('live-target-preview');
+    if (previewEl) {
+      if (targetDateMode === 'today') {
+        previewEl.innerHTML = `✨ Set for: <b style="color:#ffffff;">Today at ${timeStr}</b>`;
+      } else if (targetDateMode === 'tomorrow') {
+        previewEl.innerHTML = `✨ Set for: <b style="color:#ffffff;">Tomorrow at ${timeStr}</b>`;
+      } else if (targetDateMode === 'auto') {
+        previewEl.innerHTML = `✨ Set for: <b style="color:#ffffff;">Upcoming ${timeStr}</b>`;
+      } else {
+        previewEl.innerHTML = `✨ Set for: <b style="color:#ffffff;">${targetDateMode} at ${timeStr}</b>`;
+      }
+    }
+    updateProcessPreview();
+  }
+
+  function updateProcessPreview() {
+    const h = parseInt(document.getElementById('upload-hour')?.value || 14);
+    const m = parseInt(document.getElementById('upload-minute')?.value || 0);
+    const preMin = parseInt(document.getElementById('pre-process-minutes')?.value || 30);
+    const totalMins = h * 60 + m - preMin;
+    const processH = Math.floor((totalMins + 1440) % 1440 / 60);
+    const processM = ((totalMins % 60) + 60) % 60;
+    const suffix = processH >= 12 ? 'PM' : 'AM';
+    const ph12 = processH === 0 ? 12 : processH > 12 ? processH - 12 : processH;
+    const el = document.getElementById('process-time-desc');
+    if (el) el.textContent = `FFmpeg & editing starts at ${ph12}:${String(processM).padStart(2,'0')} ${suffix}`;
+  }
+
+  // ── Next Upload Live Countdown Timer ──────────────────────────────────
+  let schedCountdownInterval = null;
+
+  function startScheduleUploadCountdown(uploadIso, processIso, isActive) {
+    if (schedCountdownInterval) {
+      clearInterval(schedCountdownInterval);
+      schedCountdownInterval = null;
+    }
+    if (uploadIso) window.currentUploadIso = uploadIso;
+    if (processIso) window.currentProcessIso = processIso;
+    if (typeof isActive !== 'undefined') window.currentSchedIsActive = isActive;
+
+    const targetUploadIso = window.currentUploadIso || uploadIso;
+    if (!targetUploadIso) return;
+
+    function tick() {
+      try {
+        const effUploadIso = window.currentUploadIso || uploadIso;
+        const effProcessIso = window.currentProcessIso || processIso;
+        const effIsActive = typeof window.currentSchedIsActive !== 'undefined' ? window.currentSchedIsActive : isActive;
+
+        const uploadRem = YTBot.getTimeRemaining(effUploadIso);
+        const processRem = effProcessIso ? YTBot.getTimeRemaining(effProcessIso) : null;
+
+        const daysEl = document.getElementById('sched-countdown-days');
+        const hoursEl = document.getElementById('sched-countdown-hours');
+        const minsEl = document.getElementById('sched-countdown-mins');
+        const secsEl = document.getElementById('sched-countdown-secs');
+        const daysBox = document.getElementById('sched-countdown-days-box');
+        const daysSep = document.getElementById('sched-countdown-days-sep');
+        const summaryEl = document.getElementById('sched-countdown-summary');
+        const statusBadge = document.getElementById('upload-status-badge');
+        const statusText = document.getElementById('upload-status-text');
+        const statusDot = document.getElementById('upload-status-dot');
+        const processTag = document.getElementById('process-countdown-tag');
+
+        if (!effIsActive) {
+          if (statusBadge) {
+            statusBadge.style.background = 'rgba(239,68,68,0.15)';
+            statusBadge.style.borderColor = 'rgba(239,68,68,0.35)';
+            statusBadge.style.color = '#fca5a5';
+          }
+          if (statusDot) statusDot.style.background = '#ef4444';
+          if (statusText) statusText.textContent = 'Paused ⏸';
+          if (summaryEl) {
+            summaryEl.textContent = 'Schedule is paused';
+            summaryEl.style.color = '#fca5a5';
+          }
+        } else if (uploadRem.isDue) {
+          if (statusBadge) {
+            statusBadge.style.background = 'rgba(16,185,129,0.2)';
+            statusBadge.style.borderColor = 'rgba(16,185,129,0.5)';
+            statusBadge.style.color = '#6ee7b7';
+          }
+          if (statusDot) statusDot.style.background = '#10b981';
+          if (statusText) statusText.textContent = 'Upload Due Now 🚀';
+          if (summaryEl) {
+            summaryEl.textContent = 'Ready / Upload window active';
+            summaryEl.style.color = '#34d399';
+          }
+        } else {
+          if (statusBadge) {
+            statusBadge.style.background = 'rgba(99,102,241,0.2)';
+            statusBadge.style.borderColor = 'rgba(99,102,241,0.4)';
+            statusBadge.style.color = '#c7d2fe';
+          }
+          if (statusDot) statusDot.style.background = '#818cf8';
+          if (statusText) statusText.textContent = `In ${uploadRem.formatted}`;
+          if (summaryEl) {
+            summaryEl.textContent = `${uploadRem.formattedLong} left`;
+            summaryEl.style.color = '#38bdf8';
+          }
+        }
+
+        // Update unit numbers
+        if (daysEl) daysEl.textContent = String(uploadRem.days).padStart(2, '0');
+        if (hoursEl) hoursEl.textContent = String(uploadRem.hours).padStart(2, '0');
+        if (minsEl) minsEl.textContent = String(uploadRem.minutes).padStart(2, '0');
+        if (secsEl) secsEl.textContent = String(uploadRem.seconds).padStart(2, '0');
+
+        // Toggle days unit box
+        if (daysBox && daysSep) {
+          if (uploadRem.days > 0) {
+            daysBox.style.display = 'block';
+            daysSep.style.display = 'inline-block';
+          } else {
+            daysBox.style.display = 'none';
+            daysSep.style.display = 'none';
+          }
+        }
+
+        // Update processing tag
+        if (processTag && processRem) {
+          if (processRem.isDue) {
+            processTag.style.background = 'rgba(16,185,129,0.15)';
+            processTag.style.border = '1px solid rgba(16,185,129,0.3)';
+            processTag.style.color = '#34d399';
+            processTag.textContent = uploadRem.isDue ? '✓ Done / Due' : '⚙️ Processing in progress';
+            if (!uploadRem.isDue && !cardProgressPollInterval) {
+              const progBox = document.getElementById('card-pipeline-progress');
+              if (progBox) progBox.style.display = 'block';
+              startCardProgressPoller();
+            }
+          } else {
+            processTag.style.background = 'rgba(245,158,11,0.15)';
+            processTag.style.border = '1px solid rgba(245,158,11,0.3)';
+            processTag.style.color = '#fde68a';
+            processTag.textContent = `starts in ${processRem.formatted}`;
+          }
+        }
+
+        // Keep "Waiting to Release" countdown clock in perfect sync
+        const wrClock = document.getElementById('wr-countdown-clock');
+        if (wrClock) {
+          if (uploadRem.isDue) {
+            wrClock.textContent = '00:00 - Releasing...';
+          } else {
+            let timeText = '';
+            if (uploadRem.days > 0) {
+              timeText = `${uploadRem.days}d ${String(uploadRem.hours).padStart(2, '0')}:${String(uploadRem.minutes).padStart(2, '0')}:${String(uploadRem.seconds).padStart(2, '0')}`;
+            } else if (uploadRem.hours > 0) {
+              timeText = `${String(uploadRem.hours).padStart(2, '0')}:${String(uploadRem.minutes).padStart(2, '0')}:${String(uploadRem.seconds).padStart(2, '0')}`;
+            } else {
+              timeText = `${String(uploadRem.minutes).padStart(2, '0')}:${String(uploadRem.seconds).padStart(2, '0')}`;
+            }
+            wrClock.textContent = timeText;
+          }
+        }
+
+        // Keep target hint text updated with both UTC and Local time
+        const wrTargetHint = document.getElementById('wr-target-time-text');
+        if (wrTargetHint && effUploadIso) {
+          try {
+            const d = YTBot.parseTargetDate(effUploadIso);
+            if (d && !isNaN(d.getTime())) {
+              const utcClean = effUploadIso.replace('T', ' ').substring(0, 16);
+              const localClean = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              wrTargetHint.textContent = `${utcClean} UTC (${localClean} Local)`;
+            }
+          } catch (_) {}
+        }
+      } catch (err) {
+        console.error('Schedule countdown tick error:', err);
+      }
+    }
+
+    // Local time representation
+    try {
+      const targetDate = YTBot.parseTargetDate(targetUploadIso);
+      if (targetDate && !isNaN(targetDate.getTime())) {
+        const pill = document.getElementById('upload-local-pill');
+        if (pill) {
+          pill.textContent = targetDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' Local';
+        }
+        const hint = document.getElementById('sched-local-time-hint');
+        if (hint) {
+          hint.textContent = `Uploads at ${targetDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} local`;
+        }
+      }
+    } catch (_) {}
+
+    tick();
+    schedCountdownInterval = setInterval(tick, 1000);
+  }
+
+  // Initialize
+  const initMode = document.querySelector('input[name="schedule_mode"]:checked')?.value || 'exact';
+  setMode(initMode);
+  updateTimePreview();
+
+  // Initialize schedule upload countdown
+  const schedUploadIso = '{{ schedule.next_upload_at if schedule and schedule.next_upload_at else "" }}';
+  const schedProcessIso = '{{ schedule.next_process_at if schedule and schedule.next_process_at else "" }}';
+  const schedIsActive = {{ 'true' if schedule and schedule.is_active else 'false' }};
+  if (schedUploadIso) {
+    startScheduleUploadCountdown(schedUploadIso, schedProcessIso, schedIsActive);
+  }
+
+  // ── Thumbnail Auto-Select, Cycle & Video Capture Helpers ───────────────
+  function updateThumbnailPreviewUI(thumb, poolCount, mode, index) {
+    if (!thumb) return;
+
+    // Next Scheduled Card elements
+    const cardImg = document.getElementById('card-thumb-img');
+    const cardPlaceholder = document.getElementById('card-thumb-placeholder');
+    const cardName = document.getElementById('card-thumb-name');
+    const cardMeta = document.getElementById('card-thumb-meta');
+    const cardBadge = document.getElementById('card-thumb-badge');
+
+    if (cardImg && thumb.web_url) {
+      cardImg.onload = function() {
+        cardImg.style.display = 'block';
+        if (cardPlaceholder) cardPlaceholder.style.display = 'none';
+      };
+      cardImg.onerror = function() {
+        cardImg.style.display = 'none';
+        if (cardPlaceholder) cardPlaceholder.style.display = 'flex';
+      };
+      cardImg.src = thumb.web_url;
+    }
+    if (cardName) cardName.textContent = thumb.filename || 'Thumbnail';
+    if (cardMeta) {
+      const sizeKb = thumb.file_size_bytes ? (thumb.file_size_bytes / 1024).toFixed(1) + ' KB' : '';
+      cardMeta.textContent = `${thumb.width || 1280}×${thumb.height || 720} · ${sizeKb}`;
+    }
+    if (cardBadge) {
+      const currentMode = mode || document.getElementById('form-thumbnail-mode')?.value || 'sequential';
+      if (currentMode === 'random') {
+        cardBadge.textContent = '🎲 Auto-Random';
+      } else {
+        const idx = (index != null ? index : 0) % (poolCount || 1);
+        cardBadge.textContent = `📋 Auto-Rotate #${idx + 1}`;
+      }
+    }
+
+    // Form elements
+    const formImg = document.getElementById('form-thumb-preview-img');
+    const formPlaceholder = document.getElementById('form-thumb-placeholder');
+    const formTitle = document.getElementById('form-thumb-title');
+    const formMeta = document.getElementById('form-thumb-meta');
+    const formSelect = document.getElementById('form-thumbnail-select');
+
+    if (formImg && thumb.web_url) {
+      formImg.onload = function() {
+        formImg.style.display = 'block';
+        if (formPlaceholder) formPlaceholder.style.display = 'none';
+      };
+      formImg.onerror = function() {
+        formImg.style.display = 'none';
+        if (formPlaceholder) formPlaceholder.style.display = 'flex';
+      };
+      formImg.src = thumb.web_url;
+    }
+    if (formTitle) formTitle.textContent = thumb.filename || 'Thumbnail';
+    if (formMeta) {
+      const sizeKb = thumb.file_size_bytes ? (thumb.file_size_bytes / 1024).toFixed(1) + ' KB' : '';
+      formMeta.textContent = `16:9 HD • ${thumb.width || 1280}×${thumb.height || 720} • ${sizeKb}`;
+    }
+
+    if (formSelect && thumb.id) {
+      const opt = formSelect.querySelector(`option[value="${thumb.id}"]`);
+      if (opt) {
+        formSelect.value = thumb.id;
+      }
+    }
+  }
+
+  async function rotateOrAutoSelectThumb() {
+    const fd = new FormData();
+    const mode = document.getElementById('form-thumbnail-mode')?.value || 'sequential';
+    fd.append('mode', mode);
+    fd.append('advance', 'true');
+    try {
+      const resp = await YTBot.apiFetch(`/api/schedule/${channelId}/auto-select-thumbnail`, {
+        method: 'POST',
+        body: fd,
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || 'Failed to auto-select thumbnail');
+      if (data.thumbnail) {
+        updateThumbnailPreviewUI(data.thumbnail, data.pool_count, data.thumbnail_mode, data.thumbnail_index);
+        YTBot.showToast(`🖼️ Auto-selected thumbnail: ${data.thumbnail.filename}`, 'success');
+      } else {
+        YTBot.showToast(data.detail || 'No thumbnail available in pool', 'info');
+      }
+    } catch (err) {
+      YTBot.showToast(`❌ ${err.message}`, 'error');
+    }
+  }
+
+  async function extractVideoThumbNow() {
+    try {
+      YTBot.showToast('📸 Extracting HD 1280×720 thumbnail frame from video...', 'info');
+      const fd = new FormData();
+      const resp = await YTBot.apiFetch(`/api/schedule/${channelId}/extract-thumbnail`, {
+        method: 'POST',
+        body: fd,
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || 'Frame extraction failed');
+      if (data.thumbnail) {
+        updateThumbnailPreviewUI(data.thumbnail, data.pool_count, 'sequential', 0);
+        YTBot.showToast('✅ Instant HD thumbnail captured from video and set for next upload!', 'success');
+      }
+    } catch (err) {
+      YTBot.showToast(`❌ ${err.message}`, 'error');
+    }
+  }
+
+  async function onThumbSelectChange(thumbId) {
+    if (!thumbId) return;
+    const fd = new FormData();
+    fd.append('thumbnail_id', thumbId);
+    try {
+      const resp = await YTBot.apiFetch(`/api/schedule/${channelId}/set-thumbnail`, {
+        method: 'POST',
+        body: fd,
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || 'Failed to set thumbnail');
+      if (data.thumbnail) {
+        updateThumbnailPreviewUI(data.thumbnail, data.pool_count, null, data.thumbnail_index);
+        YTBot.showToast(`🖼️ Thumbnail selection updated: ${data.thumbnail.filename}`, 'success');
+      }
+    } catch (err) {
+      YTBot.showToast(`❌ ${err.message}`, 'error');
+    }
+  }
+
+  function onThumbModeChange(mode) {
+    const cardBadge = document.getElementById('card-thumb-badge');
+    if (cardBadge) {
+      if (mode === 'random') {
+        cardBadge.textContent = '🎲 Auto-Random';
+      } else {
+        cardBadge.textContent = '📋 Auto-Rotate';
+      }
+    }
+  }
+
+  // ── Save config ──────────────────────────────────────────────────────
+  async function saveConfig() {
+    const btn = document.getElementById('save-btn');
+    const icon = document.getElementById('save-icon');
+    btn.disabled = true;
+    icon.textContent = '⏳';
+    const form = document.getElementById('sched-form');
+    const fd = new FormData(form);
+    try {
+      const resp = await YTBot.apiFetch(`/api/schedule/${channelId}/config`, { method: 'POST', body: fd });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || 'Save failed');
+
+      const uploadLocal = data.next_upload_local || data.next_upload_at || '—';
+      const processLocal = data.next_process_local || data.next_process_at || '—';
+
+      // Update display
+      const nd = document.getElementById('next-upload-display');
+      if (nd) nd.textContent = uploadLocal;
+
+      if (data.next_upload_at) {
+        startScheduleUploadCountdown(data.next_upload_at, data.next_process_at, true);
+      }
+
+      YTBot.showToast(`✅ Saved! Upload: ${uploadLocal} | Processing: ${processLocal}`, 'success');
+      setTimeout(() => location.reload(), 2000);
+    } catch(e) {
+      YTBot.showToast(`❌ Error: ${e.message}`, 'error');
+    } finally {
+      btn.disabled = false;
+      icon.textContent = '💾';
+    }
+  }
+
+  async function pauseSched() {
+    await YTBot.apiFetch(`/api/schedule/${channelId}/pause`, { method: 'POST' });
+    YTBot.showToast('Schedule paused ⏸', 'success');
+    setTimeout(() => location.reload(), 800);
+  }
+
+  async function resumeSched() {
+    await YTBot.apiFetch(`/api/schedule/${channelId}/resume`, { method: 'POST' });
+    YTBot.showToast('Schedule resumed ▶️', 'success');
+    setTimeout(() => location.reload(), 800);
+  }
+
+  // ── Switch scheduled video ───────────────────────────────────────────
+  async function changeScheduledVideo(videoId) {
+    if (!videoId) return;
+    const fd = new FormData();
+    fd.append('video_id', videoId);
+    try {
+      const resp = await YTBot.apiFetch(`/api/schedule/${channelId}/set-video`, {
+        method: 'POST',
+        body: fd,
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || 'Failed to update scheduled video');
+      YTBot.showToast(data.message || 'Scheduled video updated! 🎬', 'success');
+      setTimeout(() => location.reload(), 800);
+    } catch (err) {
+      YTBot.showToast(`❌ ${err.message}`, 'error');
+    }
+  }
+
+  // ── Delete schedule ──────────────────────────────────────────────────
+  async function deleteSchedule() {
+    if (!confirm('⚠️ Permanently delete this upload schedule?\n\nThe schedule and all its settings will be removed. Upload history is kept.\nYou can create a new schedule after deletion.')) return;
+    try {
+      const resp = await YTBot.apiFetch(`/api/schedule/${channelId}`, { method: 'DELETE' });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || 'Delete failed');
+      YTBot.showToast('🗑️ Schedule deleted! You can create a new one now.', 'success');
+      setTimeout(() => location.reload(), 1000);
+    } catch (err) {
+      YTBot.showToast(`❌ ${err.message}`, 'error');
+    }
+  }
+
+  // ── Create new schedule ──────────────────────────────────────────────
+  async function createSchedule() {
+    const form = document.getElementById('create-form');
+    if (!form) return;
+    const fd = new FormData(form);
+    try {
+      const resp = await YTBot.apiFetch(`/api/schedule/${channelId}/create`, { method: 'POST', body: fd });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || 'Create failed');
+      YTBot.showToast(`✅ Schedule created! First upload: ${data.next_upload_local || data.next_upload_at}`, 'success');
+      setTimeout(() => location.reload(), 1200);
+    } catch (err) {
+      YTBot.showToast(`❌ ${err.message}`, 'error');
+    }
+  }
+
+  // ── Delete upload history entry ──────────────────────────────────────
+  async function deleteUploadHistory(historyId, videoTitle, ytVideoId) {
+    const hasYt = ytVideoId && ytVideoId.length > 3;
+    const msg = hasYt
+      ? `Permanently delete "${videoTitle}" from YouTube and history?`
+      : `Remove "${videoTitle}" from upload history?`;
+    if (!confirm(msg)) return;
+    try {
+      const res = await YTBot.apiJSON(`/api/schedule/history/${historyId}?delete_from_youtube=true`, { method: 'DELETE' });
+      YTBot.showToast(res.youtube_deleted ? '🗑️ Deleted from YouTube & history!' : '🗑️ Removed from history', 'success');
+      setTimeout(() => location.reload(), 800);
+    } catch (err) {
+      YTBot.showToast(`Delete failed: ${err.message}`, 'error');
+    }
+  }
+
+  // ── Test Schedule Upload Handlers ────────────────────────────────────
+  let testSchedulePollInterval = null;
+  let countdownTimer = null;
+
+  function formatEta(seconds) {
+    if (!seconds || seconds <= 0 || !isFinite(seconds)) return 'streaming…';
+    if (seconds < 60) return `~${Math.round(seconds)}s left`;
+    const m = Math.floor(seconds / 60);
+    const s = Math.round(seconds % 60);
+    return `~${m}m ${s}s left`;
+  }
+
+  function openTestScheduleModal() {
+    if (testSchedulePollInterval) {
+      clearInterval(testSchedulePollInterval);
+      testSchedulePollInterval = null;
+    }
+    if (countdownTimer) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+    }
+    const modal = document.getElementById('test-schedule-modal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    const resEl = document.getElementById('test-sched-result');
+    if (resEl) {
+      resEl.style.display = 'none';
+      resEl.innerHTML = '';
+    }
+    const startBtn = document.getElementById('modal-test-sched-start-btn');
+    if (startBtn) {
+      startBtn.disabled = false;
+      startBtn.innerHTML = '⚡ Run Test Upload Now';
+    }
+    const cancelBtn = document.getElementById('modal-test-sched-cancel-btn');
+    if (cancelBtn) {
+      cancelBtn.disabled = false;
+      cancelBtn.textContent = 'Cancel';
+    }
+  }
+
+  function closeTestScheduleModal() {
+    if (testSchedulePollInterval) {
+      clearInterval(testSchedulePollInterval);
+      testSchedulePollInterval = null;
+    }
+    if (countdownTimer) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+    }
+    const modal = document.getElementById('test-schedule-modal');
+    if (modal) modal.style.display = 'none';
+  }
+
+  async function deleteFromScheduleModal(ytId) {
+    if (!confirm(`Are you sure you want to delete test video ${ytId} from YouTube right now?`)) return;
+    try {
+      await YTBot.apiFetch(`/api/schedule/youtube/${ytId}`, { method: 'DELETE' });
+      YTBot.showToast('🗑️ Test video deleted from YouTube', 'success');
+      closeTestScheduleModal();
+      setTimeout(() => location.reload(), 1000);
+    } catch (e) {
+      YTBot.showToast(`Delete failed: ${e.message}`, 'error');
+    }
+  }
+
+  async function releaseNow(videoId, ytVideoId, historyId, privacy, sendDiscord) {
+    if (countdownTimer) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+    }
+    const resultEl = document.getElementById('test-sched-result');
+    if (resultEl) {
+      resultEl.innerHTML = `
+        <div style="padding:16px; text-align:center; color:#fcd34d;">
+          <span style="display:inline-block; animation:spin 1s linear infinite; font-size:24px; margin-bottom:8px;">⚙️</span>
+          <div style="font-weight:700; font-size:14px;">Releasing video to YouTube & sending Discord announcement...</div>
+        </div>
+      `;
+    }
+    const fd = new FormData();
+    fd.append('video_id', videoId);
+    fd.append('youtube_video_id', ytVideoId);
+    fd.append('history_id', historyId);
+    fd.append('privacy', privacy || 'public');
+    fd.append('send_discord', sendDiscord);
+
+    try {
+      const resp = await YTBot.apiFetch(`/api/schedule/${channelId}/release-now`, {
+        method: 'POST',
+        body: fd,
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || 'Release failed');
+      renderReleaseSuccess(data);
+    } catch (err) {
+      YTBot.showToast(`Release failed: ${err.message}`, 'error');
+    }
+  }
+
+  function renderReleaseSuccess(res) {
+    if (countdownTimer) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+    }
+    if (testSchedulePollInterval) {
+      clearInterval(testSchedulePollInterval);
+      testSchedulePollInterval = null;
+    }
+    const sDone = document.getElementById('sched-step-done');
+    if (sDone) { sDone.style.color = '#4ade80'; sDone.style.fontWeight = '700'; }
+    const fill = document.getElementById('sched-prog-fill');
+    if (fill) fill.style.width = '100%';
+    const pctBadge = document.getElementById('sched-prog-pct-badge');
+    if (pctBadge) pctBadge.textContent = '100%';
+
+    const resultEl = document.getElementById('test-sched-result');
+    if (!resultEl) return;
+    resultEl.style.background = 'rgba(16,185,129,0.12)';
+    resultEl.style.border = '1px solid rgba(16,185,129,0.4)';
+    resultEl.style.color = '#4ade80';
+
+    const discordBadge = res.discord_announced
+      ? `<span class="badge badge-success" style="font-size:11px; padding:3px 8px; background:rgba(16,185,129,0.25); border:1px solid rgba(16,185,129,0.5); color:#34d399;">📢 Sent to Discord</span>`
+      : `<span class="badge badge-muted" style="font-size:11px; padding:3px 8px;">Discord Alert Skipped</span>`;
+
+    resultEl.innerHTML = `
+      <div style="font-weight:700; font-size:16px; margin-bottom:8px; display:flex; align-items:center; gap:8px;">
+        🎉 Video Released & Announcement Sent!
+      </div>
+      <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px; background:rgba(0,0,0,0.35); padding:12px 14px; border-radius:8px; border:1px solid rgba(16,185,129,0.25);">
+        <div style="color:#e2e8f0;">📺 <b>Channel:</b> ${res.channel_name || 'YouTube Channel'}</div>
+        <div style="color:#e2e8f0; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <span>🔒 <b>Privacy:</b></span>
+          <span class="badge badge-success" style="text-transform:capitalize;">${res.privacy || 'public'}</span>
+          ${discordBadge}
+        </div>
+        <div style="color:#e2e8f0; word-break:break-all;">🔗 <b>YouTube Link:</b> <a href="${res.youtube_url}" target="_blank" style="color:#60a5fa; text-decoration:underline; font-weight:700;">${res.youtube_url}</a></div>
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <a href="${res.youtube_url}" target="_blank" class="btn btn-sm btn-primary" style="display:inline-flex; align-items:center; gap:6px; font-weight:700; padding:8px 14px;">
+          ▶️ Watch on YouTube
+        </a>
+        <button type="button" class="btn btn-sm btn-danger" onclick="deleteFromScheduleModal('${res.youtube_video_id}')" style="display:inline-flex; align-items:center; gap:6px; padding:8px 12px; font-weight:600;">
+          🗑️ Delete from YouTube Now
+        </button>
+      </div>
+    `;
+    const btn = document.getElementById('modal-test-sched-start-btn');
+    if (btn) btn.textContent = '✓ Test Complete';
+    const cancelBtn = document.getElementById('modal-test-sched-cancel-btn');
+    if (cancelBtn) {
+      cancelBtn.disabled = false;
+      cancelBtn.textContent = 'Close';
+    }
+    try { renderCardReleaseSuccess(res); } catch(_) {}
+    YTBot.showToast('🎉 Video released and announced on Discord!', 'success');
+  }
+
+  function renderWaitingRelease(res) {
+    try { updateCardWaitingReleaseUI(res); } catch(_) {}
+    const sStream = document.getElementById('sched-step-stream');
+    if (sStream) { sStream.style.color = '#4ade80'; sStream.style.fontWeight = '700'; }
+    const fill = document.getElementById('sched-prog-fill');
+    if (fill) fill.style.width = '95%';
+    const pctBadge = document.getElementById('sched-prog-pct-badge');
+    if (pctBadge) pctBadge.textContent = '95%';
+
+    const resultEl = document.getElementById('test-sched-result');
+    if (!resultEl) return;
+
+    const releaseTime = new Date(res.release_at);
+    resultEl.style.background = 'rgba(30,41,59,0.95)';
+    resultEl.style.border = '1px solid rgba(245,158,11,0.5)';
+    resultEl.style.color = '#e2e8f0';
+
+    resultEl.innerHTML = `
+      <div style="background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); border-radius:8px; padding:12px; margin-bottom:12px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+          <div style="font-weight:700; color:#f59e0b; font-size:14px; display:flex; align-items:center; gap:6px;">
+            <span>⏱️ Pre-Upload Finished (${res.lead_minutes || 5} Min Before Release)</span>
+          </div>
+          <span class="badge badge-warning" style="font-size:10px; background:rgba(245,158,11,0.2); color:#fbbf24; border:1px solid rgba(245,158,11,0.4);">Private on YouTube</span>
+        </div>
+        <div style="font-size:12px; color:#cbd5e1; line-height:1.4;">
+          The video has been prepared with dynamic overlays and uploaded beforehand as <b>Private</b>. At the release time, it will automatically become <b>Public</b> and send the announcement to Discord!
+        </div>
+      </div>
+
+      <!-- Live Big Countdown Timer -->
+      <div style="text-align:center; padding:14px 10px; background:rgba(15,23,42,0.85); border-radius:8px; border:1px solid rgba(255,255,255,0.08); margin-bottom:14px;">
+        <div style="font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:#94a3b8; font-weight:600; margin-bottom:4px;">
+          ⏳ Releasing to Public & Sending Discord Announcement in
+        </div>
+        <div id="release-countdown-timer" style="font-family:'JetBrains Mono',monospace; font-size:2.2rem; font-weight:800; color:#fbbf24; text-shadow:0 0 14px rgba(245,158,11,0.5);">
+          05:00
+        </div>
+        <div style="font-size:11px; color:#94a3b8; margin-top:3px;">
+          Release Time: <b style="color:#c7d2fe;">${releaseTime.toLocaleTimeString()}</b>
+        </div>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+        <button type="button" class="btn btn-warning" onclick="releaseNow(${res.video_id}, '${res.youtube_video_id}', ${res.history_id}, '${res.privacy}', ${res.send_discord})" style="flex:1; font-weight:700; background:linear-gradient(135deg, #f59e0b, #d97706); border:none; padding:10px 14px; font-size:13px; color:#ffffff; cursor:pointer; box-shadow:0 2px 10px rgba(245,158,11,0.35);">
+          ⚡ Release Now & Post to Discord (Skip Wait)
+        </button>
+        <button type="button" class="btn btn-sm btn-ghost" onclick="deleteFromScheduleModal('${res.youtube_video_id}')" style="font-size:11.5px; color:#f87171; border:1px solid rgba(239,68,68,0.3); padding:8px 12px;">
+          🗑️ Cancel & Delete
+        </button>
+      </div>
+    `;
+
+    // Start local timer
+    if (countdownTimer) clearInterval(countdownTimer);
+    countdownTimer = setInterval(() => {
+      const now = Date.now();
+      const diffMs = releaseTime.getTime() - now;
+      const totalSec = Math.max(0, Math.round(diffMs / 1000));
+      const m = Math.floor(totalSec / 60);
+      const s = totalSec % 60;
+      const el = document.getElementById('release-countdown-timer');
+      if (el) el.textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+
+      if (totalSec <= 0) {
+        clearInterval(countdownTimer);
+        countdownTimer = null;
+        if (el) el.textContent = '00:00 - Releasing...';
+        setTimeout(async () => {
+          try {
+            const pr = await YTBot.apiFetch(`/api/schedule/${channelId}/progress`);
+            const pdata = await pr.json();
+            if (pdata && pdata.stage === 'success' && pdata.result) {
+              renderReleaseSuccess(pdata.result);
+            } else {
+              releaseNow(res.video_id, res.youtube_video_id, res.history_id, res.privacy, res.send_discord);
+            }
+          } catch (_) {
+            releaseNow(res.video_id, res.youtube_video_id, res.history_id, res.privacy, res.send_discord);
+          }
+        }, 1500);
+      }
+    }, 1000);
+  }
+
+  async function startScheduleTest() {
+    const btn = document.getElementById('modal-test-sched-start-btn');
+    const cancelBtn = document.getElementById('modal-test-sched-cancel-btn');
+    const resultEl = document.getElementById('test-sched-result');
+    const privacy = document.getElementById('modal_test_sched_privacy')?.value || 'public';
+    const leadMinutes = parseInt(document.getElementById('modal_test_sched_lead')?.value ?? 5);
+    const sendDiscord = document.getElementById('modal_test_sched_discord')?.checked ?? true;
+
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '⏳ Testing Schedule…';
+    }
+    if (cancelBtn) cancelBtn.disabled = true;
+
+    resultEl.style.display = 'block';
+    resultEl.style.background = 'rgba(15,23,42,0.95)';
+    resultEl.style.border = '1px solid rgba(245,158,11,0.35)';
+    resultEl.style.color = '#fcd34d';
+    resultEl.innerHTML = `
+      <div style="padding:6px 2px;">
+        <!-- Stage Stepper -->
+        <div style="display:flex; justify-content:space-between; margin-bottom:12px; font-size:11px; flex-wrap:wrap; gap:6px;">
+          <div id="sched-step-ffmpeg" style="display:flex; align-items:center; gap:5px; color:#f59e0b; font-weight:700;">
+            <span style="width:18px; height:18px; border-radius:50%; background:rgba(245,158,11,0.25); border:1px solid #f59e0b; display:inline-flex; align-items:center; justify-content:center; font-size:10px;">1</span>
+            <span>Overlays / FFmpeg</span>
+          </div>
+          <div id="sched-step-thumb" style="display:flex; align-items:center; gap:5px; color:#64748b; font-weight:600;">
+            <span style="width:18px; height:18px; border-radius:50%; background:rgba(255,255,255,0.08); display:inline-flex; align-items:center; justify-content:center; font-size:10px;">2</span>
+            <span>Thumbnail</span>
+          </div>
+          <div id="sched-step-stream" style="display:flex; align-items:center; gap:5px; color:#64748b; font-weight:600;">
+            <span style="width:18px; height:18px; border-radius:50%; background:rgba(255,255,255,0.08); display:inline-flex; align-items:center; justify-content:center; font-size:10px;">3</span>
+            <span>Pre-Upload to YT</span>
+          </div>
+          <div id="sched-step-done" style="display:flex; align-items:center; gap:5px; color:#64748b; font-weight:600;">
+            <span style="width:18px; height:18px; border-radius:50%; background:rgba(255,255,255,0.08); display:inline-flex; align-items:center; justify-content:center; font-size:10px;">4</span>
+            <span>Release & Discord</span>
+          </div>
+        </div>
+
+        <!-- Status & Percentage Badge -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <div id="sched-prog-label" style="font-weight:700; color:#fff; font-size:13px; display:flex; align-items:center; gap:6px;">
+            <span style="display:inline-block; animation:spin 1.2s linear infinite;">⚙️</span>
+            <span id="sched-prog-label-text">Starting schedule pipeline test...</span>
+          </div>
+          <div id="sched-prog-pct-badge" style="font-family:'JetBrains Mono',monospace; font-weight:800; font-size:13px; color:#f59e0b; background:rgba(245,158,11,0.18); border:1px solid rgba(245,158,11,0.4); padding:2px 8px; border-radius:6px;">
+            0%
+          </div>
+        </div>
+
+        <!-- Glowing High-Precision Progress Bar -->
+        <div style="position:relative; width:100%; height:12px; background:#0b1120; border-radius:10px; overflow:hidden; border:1px solid rgba(255,255,255,0.14); margin-bottom:10px; box-shadow:inset 0 1px 3px rgba(0,0,0,0.6);">
+          <div id="sched-prog-fill" style="position:absolute; left:0; top:0; bottom:0; width:4%; background:linear-gradient(90deg, #f59e0b, #3b82f6, #10b981); border-radius:10px; transition:width 0.35s cubic-bezier(0.4, 0, 0.2, 1); box-shadow:0 0 12px rgba(245,158,11,0.8);">
+            <div style="position:absolute; right:0; top:0; bottom:0; width:6px; background:#ffffff; border-radius:10px; opacity:0.85;"></div>
+          </div>
+        </div>
+
+        <!-- Live Transferred MB, Speed, ETA -->
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:11.5px; color:#94a3b8; font-family:'JetBrains Mono',monospace;">
+          <div style="display:flex; align-items:center; gap:4px;">
+            📦 <span id="sched-prog-mb" style="color:#e2e8f0; font-weight:600;">0.0 / 0.0 MB</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:4px;">
+            ⚡ <span id="sched-prog-speed" style="color:#e2e8f0; font-weight:600;">Connecting…</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:4px;">
+            ⏱️ <span id="sched-prog-eta" style="color:#e2e8f0; font-weight:600;">calculating…</span>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Start polling progress immediately
+    if (testSchedulePollInterval) clearInterval(testSchedulePollInterval);
+    testSchedulePollInterval = setInterval(async () => {
+      try {
+        const pr = await YTBot.apiFetch(`/api/schedule/${channelId}/progress`);
+        const pdata = await pr.json();
+        if (!pdata || !pdata.active) return;
+
+        const pct = Math.max(0, Math.min(100, pdata.percent || 0));
+        const fill = document.getElementById('sched-prog-fill');
+        const pctBadge = document.getElementById('sched-prog-pct-badge');
+        const labelText = document.getElementById('sched-prog-label-text');
+        const mbText = document.getElementById('sched-prog-mb');
+        const speedText = document.getElementById('sched-prog-speed');
+        const etaText = document.getElementById('sched-prog-eta');
+
+        if (fill) fill.style.width = `${Math.max(4, pct)}%`;
+        if (pctBadge) pctBadge.textContent = `${pct}%`;
+        if (labelText && pdata.stage_label) labelText.textContent = pdata.stage_label;
+        if (mbText && pdata.total_mb > 0) mbText.textContent = `${pdata.uploaded_mb || 0} / ${pdata.total_mb} MB`;
+        if (speedText) speedText.textContent = (pdata.speed_mb > 0 ? `${pdata.speed_mb} MB/s` : 'Streaming…');
+        if (etaText) etaText.textContent = formatEta(pdata.eta_seconds);
+
+        const sFfmpeg = document.getElementById('sched-step-ffmpeg');
+        const sThumb = document.getElementById('sched-step-thumb');
+        const sStream = document.getElementById('sched-step-stream');
+        const sDone = document.getElementById('sched-step-done');
+
+        if (pdata.stage === 'ffmpeg') {
+          if (sFfmpeg) { sFfmpeg.style.color = '#f59e0b'; sFfmpeg.style.fontWeight = '700'; }
+        } else if (pdata.stage === 'thumbnail') {
+          if (sFfmpeg) { sFfmpeg.style.color = '#4ade80'; }
+          if (sThumb) { sThumb.style.color = '#f59e0b'; sThumb.style.fontWeight = '700'; }
+        } else if (pdata.stage === 'uploading' || pdata.stage === 'finalizing') {
+          if (sFfmpeg) { sFfmpeg.style.color = '#4ade80'; }
+          if (sThumb) { sThumb.style.color = '#4ade80'; }
+          if (sStream) { sStream.style.color = '#f59e0b'; sStream.style.fontWeight = '700'; }
+        }
+        if (pdata.stage === 'failed') {
+          if (testSchedulePollInterval) {
+            clearInterval(testSchedulePollInterval);
+            testSchedulePollInterval = null;
+          }
+          resultEl.style.display = 'block';
+          resultEl.style.background = 'transparent';
+          resultEl.style.border = 'none';
+          resultEl.style.padding = '0';
+          resultEl.innerHTML = YTBot.renderUploadLimitCard(pdata.error || 'Test upload failed');
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '🔄 Retry Test Upload';
+          }
+          if (cancelBtn) {
+            cancelBtn.disabled = false;
+            cancelBtn.textContent = 'Close';
+          }
+        }
+      } catch (_) {}
+    }, 450);
+
+    const fd = new FormData();
+    fd.append('privacy', privacy);
+    fd.append('lead_minutes', leadMinutes);
+    fd.append('send_discord', sendDiscord);
+
+    try {
+      const resp = await YTBot.apiFetch(`/api/schedule/${channelId}/test`, {
+        method: 'POST',
+        body: fd,
+      });
+      clearInterval(testSchedulePollInterval);
+      testSchedulePollInterval = null;
+
+      const res = await resp.json();
+      if (!resp.ok) {
+        throw new Error(res.detail || 'Test upload failed');
+      }
+
+      if (res.status === 'waiting_release') {
+        renderWaitingRelease(res);
+      } else {
+        renderReleaseSuccess(res);
+      }
+    } catch (err) {
+      if (testSchedulePollInterval) {
+        clearInterval(testSchedulePollInterval);
+        testSchedulePollInterval = null;
+      }
+      resultEl.style.display = 'block';
+      resultEl.style.background = 'transparent';
+      resultEl.style.border = 'none';
+      resultEl.style.padding = '0';
+      resultEl.innerHTML = YTBot.renderUploadLimitCard(err);
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '🔄 Retry Test Upload';
+      }
+      if (cancelBtn) {
+        cancelBtn.disabled = false;
+        cancelBtn.textContent = 'Close';
+      }
+      const errInfo = YTBot.parseApiError(err);
+      if (errInfo.isUploadLimit) {
+        YTBot.showToast('⚠️ YouTube Daily Upload Limit Reached: Unlock Advanced Features or switch channels.', 'warn', 7000);
+      } else {
+        YTBot.showToast(`❌ Test failed: ${errInfo.message}`, 'error');
+      }
+    }
+  }
+
+  // ── Card Pipeline & Waiting-Release Controller ────────────────────────
+  let cardWaitingReleaseData = {{ latest_waiting_release|tojson if latest_waiting_release else 'null' }};
+  let cardActiveProgress = {{ active_progress|tojson if active_progress else 'null' }};
+  let cardReleaseCountdownTimer = null;
+  let cardProgressPollInterval = null;
+
+  function updateCardStepper(stage) {
+    const s1 = document.getElementById('card-step-1');
+    const s2 = document.getElementById('card-step-2');
+    const s3 = document.getElementById('card-step-3');
+    const s4 = document.getElementById('card-step-4');
+    const s5 = document.getElementById('card-step-5');
+
+    const resetStyle = (el) => {
+      if (!el) return;
+      el.style.background = 'rgba(255,255,255,0.03)';
+      el.style.borderColor = 'rgba(255,255,255,0.08)';
+      el.style.color = '#94a3b8';
+      el.style.boxShadow = 'none';
+    };
+
+    const activeStyle = (el, color) => {
+      if (!el) return;
+      el.style.background = `rgba(${color}, 0.18)`;
+      el.style.borderColor = `rgba(${color}, 0.6)`;
+      el.style.color = '#ffffff';
+      el.style.boxShadow = `0 0 10px rgba(${color}, 0.35)`;
+    };
+
+    const doneStyle = (el) => {
+      if (!el) return;
+      el.style.background = 'rgba(16,185,129,0.12)';
+      el.style.borderColor = 'rgba(16,185,129,0.4)';
+      el.style.color = '#34d399';
+      el.style.boxShadow = 'none';
+    };
+
+    // Reset all
+    [s1, s2, s3, s4, s5].forEach(el => resetStyle(el));
+
+    if (stage === 'ffmpeg') {
+      activeStyle(s1, '245, 158, 11'); // Amber
+    } else if (stage === 'thumbnail') {
+      doneStyle(s1);
+      activeStyle(s2, '245, 158, 11');
+    } else if (stage === 'uploading' || stage === 'finalizing') {
+      doneStyle(s1);
+      doneStyle(s2);
+      activeStyle(s3, '59, 130, 246'); // Blue
+    } else if (stage === 'waiting_release') {
+      doneStyle(s1);
+      doneStyle(s2);
+      doneStyle(s3);
+      activeStyle(s4, '245, 158, 11'); // Amber
+    } else if (stage === 'success') {
+      doneStyle(s1);
+      doneStyle(s2);
+      doneStyle(s3);
+      doneStyle(s4);
+      doneStyle(s5);
+    }
+  }
+
+  function updateCardWaitingReleaseUI(res) {
+    if (!res) return;
+    cardWaitingReleaseData = res;
+    const panel = document.getElementById('card-waiting-release-panel');
+    const triggerRow = document.getElementById('card-pre-upload-trigger');
+    const statusText = document.getElementById('card-pipeline-status-text');
+
+    if (panel) panel.style.display = 'block';
+    if (triggerRow) triggerRow.style.display = 'none';
+    if (statusText) statusText.textContent = '🔒 Pre-Upload Ready • Waiting Release';
+
+    // Update video title & links
+    const titleEl = document.getElementById('wr-title-text');
+    if (titleEl && res.video_title) titleEl.textContent = res.video_title;
+
+    const linkEl = document.getElementById('wr-link-anchor');
+    if (linkEl && res.youtube_url) {
+      linkEl.href = res.youtube_url;
+      linkEl.textContent = `${res.youtube_url} ↗`;
+    }
+
+    const watchBtn = document.getElementById('wr-watch-btn');
+    if (watchBtn && res.youtube_url) watchBtn.href = res.youtube_url;
+
+    // Update thumbnail image
+    const thumbImg = document.getElementById('wr-thumb-img');
+    const thumbUrl = res.thumbnail_display_url || (res.youtube_video_id ? `https://img.youtube.com/vi/${res.youtube_video_id}/mqdefault.jpg` : '');
+    if (thumbImg && thumbUrl) {
+      thumbImg.src = thumbUrl;
+      thumbImg.style.display = 'block';
+    }
+
+    // Update target time display
+    const targetLabel = document.getElementById('wr-target-time-text');
+    const targetIso = (res && res.release_at) || (res && res.scheduled_at) || schedUploadIso;
+    if (targetLabel && targetIso) {
+      try {
+        const d = YTBot.parseTargetDate(targetIso);
+        const utcClean = targetIso.replace('T', ' ').substring(0, 16);
+        targetLabel.textContent = `${utcClean} UTC (${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} Local)`;
+      } catch (_) {
+        targetLabel.textContent = targetIso;
+      }
+    }
+
+    // Update burned credentials if available
+    const wrBurned = document.getElementById('wr-burned-codes');
+    const wrUser = document.getElementById('wr-edit-user');
+    const wrPass = document.getElementById('wr-edit-pass');
+    const wrTime = document.getElementById('wr-edit-time');
+    if (res.overlay_username || res.overlay_password) {
+      if (wrBurned) wrBurned.style.display = 'inline-flex';
+      if (wrUser) wrUser.textContent = res.overlay_username || '—';
+      if (wrPass) wrPass.textContent = res.overlay_password || '—';
+      if (wrTime) wrTime.textContent = res.overlay_burn_time ? `(${res.overlay_burn_time})` : '';
+    }
+
+    updateCardStepper('waiting_release');
+
+    // Start local countdown down to release_at only if not already active
+    const releaseIso = (res && res.release_at) || (res && res.scheduled_at) || window.currentUploadIso || schedUploadIso;
+    if (releaseIso && !cardReleaseCountdownTimer) {
+      function tickRelease() {
+        try {
+          const rem = YTBot.getTimeRemaining(releaseIso);
+          const clockEl = document.getElementById('wr-countdown-clock');
+          if (!clockEl) return;
+
+          if (rem.isDue) {
+            clockEl.textContent = '00:00 - Releasing...';
+            clearInterval(cardReleaseCountdownTimer);
+            cardReleaseCountdownTimer = null;
+            setTimeout(async () => {
+              try {
+                const resp = await YTBot.apiFetch(`/api/schedule/${channelId}/progress`);
+                const pdata = await resp.json();
+                if (pdata && pdata.stage === 'success') {
+                  renderCardReleaseSuccess(pdata.result || pdata);
+                }
+              } catch (_) {}
+            }, 2000);
+          } else {
+            let timeText = '';
+            if (rem.days > 0) {
+              timeText = `${rem.days}d ${String(rem.hours).padStart(2, '0')}:${String(rem.minutes).padStart(2, '0')}:${String(rem.seconds).padStart(2, '0')}`;
+            } else if (rem.hours > 0) {
+              timeText = `${String(rem.hours).padStart(2, '0')}:${String(rem.minutes).padStart(2, '0')}:${String(rem.seconds).padStart(2, '0')}`;
+            } else {
+              timeText = `${String(rem.minutes).padStart(2, '0')}:${String(rem.seconds).padStart(2, '0')}`;
+            }
+            clockEl.textContent = timeText;
+          }
+        } catch (e) {
+          console.error("Release countdown error:", e);
+        }
+      }
+      tickRelease();
+      cardReleaseCountdownTimer = setInterval(tickRelease, 1000);
+    }
+  }
+
+  async function executeCardReleaseNow() {
+    if (!cardWaitingReleaseData) return;
+    const btn = document.getElementById('wr-release-btn');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = `<span style="display:inline-block; animation:spin 1s linear infinite;">⚙️</span> Releasing video to YouTube & Discord...`;
+    }
+
+    const fd = new FormData();
+    fd.append('video_id', cardWaitingReleaseData.video_id);
+    fd.append('youtube_video_id', cardWaitingReleaseData.youtube_video_id);
+    fd.append('history_id', cardWaitingReleaseData.history_id);
+    fd.append('privacy', cardWaitingReleaseData.privacy || 'public');
+    fd.append('send_discord', cardWaitingReleaseData.send_discord !== false);
+
+    try {
+      const resp = await YTBot.apiFetch(`/api/schedule/${channelId}/release-now`, {
+        method: 'POST',
+        body: fd,
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || 'Release failed');
+      renderCardReleaseSuccess(data);
+    } catch (err) {
+      YTBot.showToast(`Release failed: ${err.message}`, 'error');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `⚡ Release Now & Post to Discord (Skip Wait)`;
+      }
+    }
+  }
+
+  function renderCardReleaseSuccess(res) {
+    if (cardReleaseCountdownTimer) {
+      clearInterval(cardReleaseCountdownTimer);
+      cardReleaseCountdownTimer = null;
+    }
+    if (cardProgressPollInterval) {
+      clearInterval(cardProgressPollInterval);
+      cardProgressPollInterval = null;
+    }
+
+    updateCardStepper('success');
+
+    const panel = document.getElementById('card-waiting-release-panel');
+    if (!panel) return;
+
+    panel.style.background = 'linear-gradient(135deg, rgba(16,185,129,0.18), rgba(15,23,42,0.95))';
+    panel.style.borderColor = 'rgba(16,185,129,0.6)';
+
+    const discordNotice = res.discord_announced !== false
+      ? `<span style="background:rgba(16,185,129,0.25); border:1px solid rgba(16,185,129,0.5); color:#34d399; font-weight:700; padding:2px 8px; border-radius:6px; font-size:11px;">📢 Announced on Discord</span>`
+      : `<span style="color:#94a3b8; font-size:11px;">Discord announcement skipped</span>`;
+
+    panel.innerHTML = `
+      <div style="font-weight:800; font-size:15px; color:#4ade80; margin-bottom:8px; display:flex; align-items:center; gap:8px;">
+        <span>🎉</span> VIDEO RELEASED & ANNOUNCEMENT SENT!
+      </div>
+      <div style="background:rgba(0,0,0,0.4); border:1px solid rgba(16,185,129,0.3); border-radius:8px; padding:12px; margin-bottom:12px; font-size:12.5px; color:#e2e8f0; display:flex; flex-direction:column; gap:6px;">
+        <div>📺 <b>Video:</b> ${res.video_title || 'Video'}</div>
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <span>🌐 <b>Visibility:</b> <b style="color:#34d399; text-transform:capitalize;">${res.privacy || 'public'}</b></span>
+          ${discordNotice}
+        </div>
+        <div>🔗 <b>Watch Link:</b> <a href="${res.youtube_url}" target="_blank" style="color:#60a5fa; font-weight:700; text-decoration:underline;">${res.youtube_url} ↗</a></div>
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <a href="${res.youtube_url}" target="_blank" class="btn btn-sm btn-primary" style="font-weight:700; padding:8px 14px; display:inline-flex; align-items:center; gap:6px;">
+          ▶️ Watch Public Video on YouTube
+        </a>
+      </div>
+    `;
+
+    // Update progress bar
+    const fill = document.getElementById('card-prog-fill');
+    if (fill) fill.style.width = '100%';
+    const pct = document.getElementById('card-prog-pct');
+    if (pct) pct.textContent = '100%';
+    const leftPct = document.getElementById('card-prog-left-pct');
+    if (leftPct) leftPct.textContent = '0%';
+    const label = document.getElementById('card-prog-stage-label');
+    if (label) label.textContent = '🎉 Video Published & Live!';
+
+    YTBot.showToast('🎉 Video successfully released to public!', 'success');
+  }
+
+  async function triggerCardPreflight() {
+    const btn = document.getElementById('card-preflight-btn');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = `<span style="display:inline-block; animation:spin 1s linear infinite;">⚙️</span> Starting Pre-Upload...`;
+    }
+
+    try {
+      const resp = await YTBot.apiFetch(`/api/schedule/${channelId}/start-preflight`, { method: 'POST' });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || 'Start failed');
+
+      YTBot.showToast('⚡ Pre-upload pipeline started! Editing with overlays & uploading to YouTube...', 'success');
+      const trig = document.getElementById('card-pre-upload-trigger');
+      if (trig) trig.style.display = 'none';
+
+      const progBox = document.getElementById('card-pipeline-progress');
+      if (progBox) progBox.style.display = 'block';
+
+      // Start poller
+      startCardProgressPoller();
+    } catch (err) {
+      YTBot.showToast(`Failed: ${err.message}`, 'error');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `⚡ Start Edit & Pre-Upload Now`;
+      }
+    }
+  }
+
+  function startCardProgressPoller() {
+    if (cardProgressPollInterval) return;
+
+    cardProgressPollInterval = setInterval(async () => {
+      try {
+        const resp = await YTBot.apiFetch(`/api/schedule/${channelId}/progress`);
+        const pdata = await resp.json();
+        if (!pdata) return;
+
+        if (pdata.active || pdata.stage === 'waiting_release' || pdata.stage === 'success') {
+          const pct = Math.max(0, Math.min(100, pdata.percent || 0));
+          const pctLeft = pdata.percent_left != null ? pdata.percent_left : Math.max(0, 100 - pct);
+
+          // Update Progress Elements
+          const fill = document.getElementById('card-prog-fill');
+          if (fill) fill.style.width = `${Math.max(4, pct)}%`;
+
+          const pctEl = document.getElementById('card-prog-pct');
+          if (pctEl) pctEl.textContent = `${pct}%`;
+
+          const leftEl = document.getElementById('card-prog-left-pct');
+          if (leftEl) leftEl.textContent = `${pctLeft}%`;
+
+          const label = document.getElementById('card-prog-stage-label');
+          if (label && pdata.stage_label) label.textContent = pdata.stage_label;
+
+          const statMb = document.getElementById('card-stat-mb');
+          if (statMb && pdata.total_mb > 0) {
+            statMb.textContent = `${pdata.uploaded_mb || 0} / ${pdata.total_mb} MB (${pdata.remaining_mb || 0} MB left)`;
+          }
+
+          const statSpeed = document.getElementById('card-stat-speed');
+          if (statSpeed) {
+            statSpeed.textContent = (pdata.speed_mb > 0 ? `${pdata.speed_mb} MB/s` : 'streaming…');
+          }
+
+          const statEta = document.getElementById('card-stat-eta');
+          if (statEta) {
+            statEta.textContent = formatEta(pdata.eta_seconds);
+          }
+
+          // Update burned overlays details if present
+          const editDetailsBox = document.getElementById('card-burned-edit-details');
+          const editUser = document.getElementById('card-edit-user');
+          const editPass = document.getElementById('card-edit-pass');
+          const editTime = document.getElementById('card-edit-time');
+          if (pdata.overlay_username || pdata.overlay_password) {
+            if (editDetailsBox) editDetailsBox.style.display = 'flex';
+            if (editUser) editUser.textContent = pdata.overlay_username || '—';
+            if (editPass) editPass.textContent = pdata.overlay_password || '—';
+            if (editTime) editTime.textContent = pdata.overlay_burn_time || '—';
+          }
+
+          // Update thumbnail in cards if auto-selected during pipeline
+          const thumbUrl = pdata.thumbnail_display_url || (pdata.meta && pdata.meta.thumbnail_display_url);
+          const thumbFilename = pdata.thumbnail_filename || (pdata.meta && pdata.meta.thumbnail_filename);
+          if (thumbUrl) {
+            const cardImg = document.getElementById('card-thumb-img');
+            const cardPl = document.getElementById('card-thumb-placeholder');
+            const cardName = document.getElementById('card-thumb-name');
+            if (cardImg) {
+              cardImg.onload = function() {
+                cardImg.style.display = 'block';
+                if (cardPl) cardPl.style.display = 'none';
+              };
+              cardImg.onerror = function() {
+                cardImg.style.display = 'none';
+                if (cardPl) cardPl.style.display = 'flex';
+              };
+              cardImg.src = thumbUrl;
+            }
+            if (cardName && thumbFilename) cardName.textContent = thumbFilename;
+
+            const formImg = document.getElementById('form-thumb-preview-img');
+            const formPl = document.getElementById('form-thumb-placeholder');
+            const formTitle = document.getElementById('form-thumb-title');
+            if (formImg) {
+              formImg.onload = function() {
+                formImg.style.display = 'block';
+                if (formPl) formPl.style.display = 'none';
+              };
+              formImg.onerror = function() {
+                formImg.style.display = 'none';
+                if (formPl) formPl.style.display = 'flex';
+              };
+              formImg.src = thumbUrl;
+            }
+            if (formTitle && thumbFilename) formTitle.textContent = thumbFilename;
+          }
+
+          updateCardStepper(pdata.stage);
+
+          if (pdata.stage === 'waiting_release') {
+            updateCardWaitingReleaseUI(pdata);
+          } else if (pdata.stage === 'success') {
+            renderCardReleaseSuccess(pdata.result || pdata);
+          }
+        } else if (pdata.stage === 'idle' || (!pdata.active && pdata.stage !== 'failed' && pdata.stage !== 'waiting_release')) {
+          // Upload pipeline finished or idle — reset UI cleanly for next scheduled upload
+          if (cardProgressPollInterval) {
+            clearInterval(cardProgressPollInterval);
+            cardProgressPollInterval = null;
+          }
+
+          const progBox = document.getElementById('card-pipeline-progress');
+          if (progBox) progBox.style.display = 'none';
+
+          const trig = document.getElementById('card-pre-upload-trigger');
+          if (trig) trig.style.display = 'flex';
+
+          const statusText = document.getElementById('card-pipeline-status-text');
+          if (statusText) {
+            statusText.style.color = '#38bdf8';
+            statusText.textContent = 'Scheduled • Auto-runs on time';
+          }
+
+          updateCardStepper('idle');
+          if (pdata.next_upload_at) {
+            window.currentUploadIso = pdata.next_upload_at;
+            if (pdata.next_process_at) window.currentProcessIso = pdata.next_process_at;
+          }
+        } else if (pdata.stage === 'failed') {
+          const fill = document.getElementById('card-prog-fill');
+          if (fill) {
+            fill.style.width = '100%';
+            fill.style.background = 'linear-gradient(90deg, #ef4444, #dc2626)';
+          }
+          const label = document.getElementById('card-prog-stage-label');
+          if (label) {
+            label.style.color = '#fca5a5';
+            label.textContent = `❌ ${pdata.error || 'Processing Failed'}`;
+          }
+          const spinner = document.getElementById('card-prog-spinner');
+          if (spinner) {
+            spinner.style.animation = 'none';
+            spinner.textContent = '❌';
+          }
+          const statusText = document.getElementById('card-pipeline-status-text');
+          if (statusText) {
+            statusText.style.color = '#f87171';
+            statusText.textContent = 'Failed';
+          }
+          const trig = document.getElementById('card-pre-upload-trigger');
+          if (trig) {
+            trig.style.display = 'flex';
+            const btn = document.getElementById('card-preflight-btn');
+            if (btn) {
+              btn.disabled = false;
+              btn.innerHTML = '🔄 Retry Edit & Pre-Upload';
+            }
+          }
+        }
+      } catch (_) {}
+    }, 1200);
+  }
+
+  // Auto-init if waiting_release or active progress is already present on page load
+  const wrPanel = document.getElementById('card-waiting-release-panel');
+  if (cardWaitingReleaseData) {
+    updateCardWaitingReleaseUI(cardWaitingReleaseData);
+  } else if (wrPanel && wrPanel.style.display !== 'none') {
+    updateCardWaitingReleaseUI({
+      release_at: schedUploadIso,
+      scheduled_at: schedUploadIso,
+    });
+  } else if (cardActiveProgress && cardActiveProgress.active) {
+    updateCardStepper(cardActiveProgress.stage);
+    startCardProgressPoller();
+  }
+</script>
+{% endblock %}
+
+
