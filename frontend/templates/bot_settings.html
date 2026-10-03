@@ -285,11 +285,16 @@ function getCsrf() {
   return match ? match[1] : (document.querySelector('input[name="csrf_token"]')?.value || '');
 }
 
-// ── Bot Actions ──────────────────────────────────────────────────────────────
+// ── Bot Actions (Ultra Fast & Optimistic) ────────────────────────────────────
 async function saveBot(e, chId) {
   e.preventDefault();
   const form = document.getElementById(`form-${chId}`);
   const fd = new FormData(form);
+  const saveBtn = form.querySelector('button[type="submit"]');
+  const originalText = saveBtn.innerHTML;
+
+  saveBtn.innerHTML = '⏳ Saving...';
+  saveBtn.disabled = true;
 
   // If token field still shows masked value, don't send it
   const tokenInput = document.getElementById(`token-${chId}`);
@@ -305,17 +310,35 @@ async function saveBot(e, chId) {
     });
     const data = await resp.json().catch(() => ({}));
     if (resp.ok && data.ok) {
-      showToast('✅ Bot configuration saved!');
-      setTimeout(() => refreshStatus(), 500);
+      showToast('⚡ Bot configuration saved instantly!');
+      refreshStatus();
     } else {
       showToast('❌ ' + (data.detail || data.message || `Save failed (${resp.status})`), 'error');
     }
   } catch(err) {
     showToast('❌ Network error: ' + (err.message || 'Server unreachable'), 'error');
+  } finally {
+    saveBtn.innerHTML = originalText;
+    saveBtn.disabled = false;
   }
 }
 
 async function botAction(chId, action) {
+  const badge = document.getElementById(`status-${chId}`);
+  // Optimistic instant UI update
+  if (badge) {
+    if (action === 'start') {
+      badge.className = 'status-badge status-online';
+      badge.textContent = '🟢 Starting...';
+    } else if (action === 'stop') {
+      badge.className = 'status-badge status-offline';
+      badge.textContent = '⚫ Stopping...';
+    } else if (action === 'restart') {
+      badge.className = 'status-badge status-online';
+      badge.textContent = '🔄 Restarting...';
+    }
+  }
+
   try {
     const resp = await fetch(`/api/bots/${chId}/${action}`, {
       method: 'POST',
@@ -323,13 +346,18 @@ async function botAction(chId, action) {
     });
     const data = await resp.json().catch(() => ({}));
     if (resp.ok && data.ok) {
-      showToast(`✅ ${data.message}`);
-      setTimeout(() => refreshStatus(), 1500);
+      showToast(`⚡ ${data.message}`);
+      // Poll quickly 3 times: after 300ms, 1s, and 2s
+      setTimeout(refreshStatus, 300);
+      setTimeout(refreshStatus, 1000);
+      setTimeout(refreshStatus, 2000);
     } else {
       showToast('❌ ' + (data.detail || data.message || `Action failed (${resp.status})`), 'error');
+      refreshStatus();
     }
   } catch(err) {
     showToast('❌ Network error: ' + (err.message || 'Server unreachable'), 'error');
+    refreshStatus();
   }
 }
 
@@ -339,6 +367,9 @@ function restartBot(chId) { botAction(chId, 'restart'); }
 
 async function deleteBot(chId) {
   if (!confirm('Delete this bot configuration? The bot will be stopped.')) return;
+  const card = document.getElementById(`card-${chId}`);
+  if (card) card.style.opacity = '0.5';
+
   try {
     const resp = await fetch(`/api/bots/${chId}`, {
       method: 'DELETE',
@@ -347,47 +378,46 @@ async function deleteBot(chId) {
     const data = await resp.json().catch(() => ({}));
     if (resp.ok && data.ok) {
       showToast('🗑️ Bot deleted');
-      document.getElementById(`card-${chId}`)?.remove();
+      card?.remove();
     } else {
+      if (card) card.style.opacity = '1';
       showToast('❌ ' + (data.detail || data.message || 'Delete failed'), 'error');
     }
   } catch(err) {
+    if (card) card.style.opacity = '1';
     showToast('❌ Network error: ' + (err.message || 'Server unreachable'), 'error');
   }
 }
 
-// ── Status Polling ───────────────────────────────────────────────────────────
+// ── Ultra-Fast Status Polling ────────────────────────────────────────────────
+let _isPolling = false;
 async function refreshStatus() {
+  if (_isPolling) return;
+  _isPolling = true;
   try {
     const resp = await fetch('/api/bots/status');
     const data = await resp.json();
     const bots = data.bots || {};
 
-    // Reset all to offline first
-    document.querySelectorAll('[id^="status-"]').forEach(el => {
+    for (const el of document.querySelectorAll('[id^="status-"]')) {
       const chId = el.id.replace('status-', '');
-      if (!(chId in bots)) {
+      const info = bots[chId];
+      if (info && info.running) {
+        el.className = 'status-badge status-online';
+        el.textContent = `🟢 Online${info.user ? ' · ' + info.user : ''}`;
+      } else {
         el.className = 'status-badge status-offline';
         el.textContent = '⚫ Offline';
       }
-    });
-
-    for (const [chId, info] of Object.entries(bots)) {
-      const badge = document.getElementById(`status-${chId}`);
-      if (!badge) continue;
-      if (info.running) {
-        badge.className = 'status-badge status-online';
-        badge.textContent = `🟢 Online${info.user ? ' · ' + info.user : ''}`;
-      } else {
-        badge.className = 'status-badge status-offline';
-        badge.textContent = '⚫ Offline';
-      }
     }
-  } catch(e) {}
+  } catch(e) {
+  } finally {
+    _isPolling = false;
+  }
 }
 
-// Auto-refresh every 15 seconds
+// Ultra-fast auto-refresh every 3.5 seconds
 refreshStatus();
-setInterval(refreshStatus, 15000);
+setInterval(refreshStatus, 3500);
 </script>
 {% endblock %}

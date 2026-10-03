@@ -145,9 +145,10 @@ async def save_bot_config(
     await db.commit()
     await db.refresh(db_bot)
 
-    # Apply branding if bot is running
+    # Apply branding in background so save response is instant (under 20ms)
     if db_bot.bot_token:
-        await _apply_branding(db_bot)
+        import asyncio
+        asyncio.create_task(_apply_branding(db_bot))
 
     return JSONResponse({"ok": True, "message": "Bot configuration saved"})
 
@@ -204,14 +205,17 @@ async def restart_bot(
         raise HTTPException(status_code=400, detail="No bot token configured for this channel")
 
     from bot.manager import bot_manager
-    await bot_manager.restart_bot(
-        channel_id=channel_id,
-        token=db_bot.bot_token.strip(),
-        bot_name=db_bot.bot_name or "YTBot",
+    import asyncio
+    asyncio.create_task(
+        bot_manager.restart_bot(
+            channel_id=channel_id,
+            token=db_bot.bot_token.strip(),
+            bot_name=db_bot.bot_name or "YTBot",
+        )
     )
     db_bot.last_error = None
     await db.commit()
-    return JSONResponse({"ok": True, "message": "Bot restarted"})
+    return JSONResponse({"ok": True, "message": "Bot restart initiated"})
 
 
 @router.delete("/{channel_id}")
