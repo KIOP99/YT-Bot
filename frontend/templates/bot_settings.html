@@ -133,6 +133,7 @@
 
     <!-- Card Body — Config Form -->
     <form id="form-{{ ch.id }}" onsubmit="saveBot(event, {{ ch.id }})">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
       <div class="bot-card-body">
 
         <!-- Bot Token -->
@@ -279,6 +280,11 @@ function previewImage(input, boxId, avatarHeaderId) {
   reader.readAsDataURL(input.files[0]);
 }
 
+function getCsrf() {
+  const match = document.cookie.match(/csrf_token=([^;]+)/);
+  return match ? match[1] : (document.querySelector('input[name="csrf_token"]')?.value || '');
+}
+
 // ── Bot Actions ──────────────────────────────────────────────────────────────
 async function saveBot(e, chId) {
   e.preventDefault();
@@ -292,31 +298,38 @@ async function saveBot(e, chId) {
   }
 
   try {
-    const resp = await fetch(`/api/bots/${chId}/save`, { method: 'POST', body: fd });
-    const data = await resp.json();
-    if (data.ok) {
+    const resp = await fetch(`/api/bots/${chId}/save`, {
+      method: 'POST',
+      headers: { 'X-CSRF-Token': getCsrf() },
+      body: fd
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (resp.ok && data.ok) {
       showToast('✅ Bot configuration saved!');
       setTimeout(() => refreshStatus(), 500);
     } else {
-      showToast('❌ ' + (data.detail || 'Save failed'), 'error');
+      showToast('❌ ' + (data.detail || data.message || `Save failed (${resp.status})`), 'error');
     }
   } catch(err) {
-    showToast('❌ Network error', 'error');
+    showToast('❌ Network error: ' + (err.message || 'Server unreachable'), 'error');
   }
 }
 
 async function botAction(chId, action) {
   try {
-    const resp = await fetch(`/api/bots/${chId}/${action}`, { method: 'POST' });
-    const data = await resp.json();
-    if (data.ok) {
+    const resp = await fetch(`/api/bots/${chId}/${action}`, {
+      method: 'POST',
+      headers: { 'X-CSRF-Token': getCsrf() }
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (resp.ok && data.ok) {
       showToast(`✅ ${data.message}`);
       setTimeout(() => refreshStatus(), 1500);
     } else {
-      showToast('❌ ' + (data.detail || 'Action failed'), 'error');
+      showToast('❌ ' + (data.detail || data.message || `Action failed (${resp.status})`), 'error');
     }
   } catch(err) {
-    showToast('❌ Network error', 'error');
+    showToast('❌ Network error: ' + (err.message || 'Server unreachable'), 'error');
   }
 }
 
@@ -327,14 +340,19 @@ function restartBot(chId) { botAction(chId, 'restart'); }
 async function deleteBot(chId) {
   if (!confirm('Delete this bot configuration? The bot will be stopped.')) return;
   try {
-    const resp = await fetch(`/api/bots/${chId}`, { method: 'DELETE' });
-    const data = await resp.json();
-    if (data.ok) {
+    const resp = await fetch(`/api/bots/${chId}`, {
+      method: 'DELETE',
+      headers: { 'X-CSRF-Token': getCsrf() }
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (resp.ok && data.ok) {
       showToast('🗑️ Bot deleted');
       document.getElementById(`card-${chId}`)?.remove();
+    } else {
+      showToast('❌ ' + (data.detail || data.message || 'Delete failed'), 'error');
     }
   } catch(err) {
-    showToast('❌ Network error', 'error');
+    showToast('❌ Network error: ' + (err.message || 'Server unreachable'), 'error');
   }
 }
 

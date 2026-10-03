@@ -47,6 +47,25 @@ if _is_sqlite:
                     "ALTER TABLE videos ADD COLUMN thumbnail_id INTEGER REFERENCES thumbnails(id) ON DELETE SET NULL"
                 )
                 dbapi_connection.commit()
+
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='discord_bots'")
+            if not cursor.fetchone():
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS discord_bots (
+                        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        channel_id INTEGER NOT NULL UNIQUE REFERENCES youtube_channels(id) ON DELETE CASCADE,
+                        bot_token TEXT,
+                        bot_name VARCHAR(128),
+                        avatar_path VARCHAR(512),
+                        banner_path VARCHAR(512),
+                        is_enabled BOOLEAN NOT NULL DEFAULT 1,
+                        is_running BOOLEAN NOT NULL DEFAULT 0,
+                        last_error TEXT,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+                    )
+                """)
+                dbapi_connection.commit()
         except Exception:
             pass
         cursor.close()

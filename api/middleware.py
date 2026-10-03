@@ -33,6 +33,7 @@ CSRF_EXEMPT_PATHS = {
     "/api/channels/oauth/callback",
     "/auth/login",
     "/auth/logout",
+    "/api/bots",
 }
 CSRF_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
@@ -96,7 +97,7 @@ def add_middleware(app: FastAPI) -> None:
             return await call_next(request)
 
         path = request.url.path
-        if path in CSRF_EXEMPT_PATHS or path.startswith("/static"):
+        if path in CSRF_EXEMPT_PATHS or path.startswith("/static") or path.startswith("/api/bots"):
             return await call_next(request)
 
         # Skip CSRF for API token auth (Authorization header present)
