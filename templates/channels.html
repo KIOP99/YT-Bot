@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Channels — YTBot{% endblock %}
+{% block page_title %}YouTube Channels{% endblock %}
+
+{% block content %}
+
+<div class="grid-2 gap-16" style="align-items:start;">
+
+  <!-- Add Channel Form -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">➕ Add YouTube Channel</div>
+    </div>
+    <form action="/api/channels" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+
+      <div class="form-group">
+        <label class="form-label" for="channel-name">Channel Display Name</label>
+        <input class="form-control" type="text" id="channel-name" name="name" placeholder="e.g. My Mai34n Channel"
+          required />
+        <p class="text-muted text-sm" style="margin-top:6px;">
+          After adding, click <strong>Authorize YouTube</strong> to link your Google/YouTube account.
+        </p>
+      </div>
+
+      <button type="submit" class="btn btn-primary w-full">
+        ➕ Add Channel Entry
+      </button>
+    </form>
+  </div>
+
+  <!-- Channel List -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">📺 Connected YouTube Channels</div>
+    </div>
+
+    {% if channels %}
+    {% for ch in channels %}
+    <div
+      style="display:flex;align-items:center;justify-content:space-between;padding:16px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px;background:var(--bg-card);flex-wrap:wrap;gap:12px;">
+
+      <!-- Channel Avatar & Info -->
+      <div style="display:flex;align-items:center;gap:14px;">
+        {% if ch.thumbnail_url %}
+        <img src="{{ ch.thumbnail_url }}" alt="{{ ch.name }}"
+          style="width:52px;height:52px;border-radius:50%;object-fit:cover;border:2px solid #ef4444;box-shadow:0 0 10px rgba(239,68,68,0.3);" />
+        {% else %}
+        <div
+          style="width:52px;height:52px;border-radius:50%;background:rgba(239,68,68,0.12);color:#ef4444;display:flex;align-items:center;justify-content:center;font-size:24px;border:2px solid rgba(239,68,68,0.3);">
+          ▶
+        </div>
+        {% endif %}
+
+        <div>
+          <div style="font-weight:700;font-size:1.1rem;display:flex;align-items:center;gap:8px;">
+            <span>{{ ch.name }}</span>
+            {% if ch.is_authenticated %}
+            <span class="badge badge-success" style="font-size:11px;">✓ YouTube Verified</span>
+            {% endif %}
+          </div>
+
+          <div class="text-muted text-sm" style="display:flex;gap:14px;margin-top:3px;flex-wrap:wrap;">
+            {% if ch.youtube_channel_id %}
+            <a href="https://www.youtube.com/channel/{{ ch.youtube_channel_id }}" target="_blank"
+              style="color:var(--text-muted);text-decoration:none;">
+              🆔 <code>{{ ch.youtube_channel_id }}</code> ↗
+            </a>
+            {% endif %}
+            {% if ch.subscriber_count %}
+            <span>👥 <strong>{{ '{:,}'.format(ch.subscriber_count) }}</strong> subscribers</span>
+            {% endif %}
+            {% if ch.custom_url %}
+            <span>🔗 {{ ch.custom_url }}</span>
+            {% endif %}
+          </div>
+
+          <div style="margin-top:8px;display:flex;gap:6px;">
+            {% if ch.is_authenticated %}
+            <span class="badge badge-success">● Connected & Ready</span>
+            {% else %}
+            <span class="badge badge-warn">⚠️ Needs Google Authorization</span>
+            {% endif %}
+            {% if ch.is_active %}
+            <span class="badge badge-info">Active</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div style="display:flex;gap:8px;align-items:center;">
+        {% if ch.is_authenticated %}
+        <button onclick="syncChannel({{ ch.id }})" class="btn btn-ghost btn-sm"
+          title="Refresh avatar, name & subscriber count from YouTube">
+          🔄 Sync Stats
+        </button>
+        <a href="/api/comments?channel_id={{ ch.id }}" class="btn btn-ghost btn-sm"
+          title="Configure Auto Comment templates and schedule">
+          💬 Comments
+        </a>
+        <a href="/api/channels/{{ ch.id }}/oauth" class="btn btn-ghost btn-sm">
+          Re-auth
+        </a>
+        {% else %}
+        <a href="/api/channels/{{ ch.id }}/oauth" class="btn btn-primary btn-sm">
+          🔗 Authorize YouTube
+        </a>
+        {% endif %}
+        <button onclick="YTBot.deleteResource('/api/channels/{{ ch.id }}')" class="btn btn-danger btn-sm"
+          title="Remove channel">
+          🗑
+        </button>
+      </div>
+
+    </div>
+    {% endfor %}
+    {% else %}
+    <div style="padding:32px 0;text-align:center;">
+      <p class="text-muted text-sm">No channels added yet. Add a channel name on the left to get started.</p>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<script>
+  async function syncChannel(channelId) {
+    try {
+      YTBot.showToast('Fetching latest stats and logo from YouTube…', 'info');
+      const resp = await YTBot.apiFetch(`/api/channels/${channelId}/sync`, { method: 'POST' });
+      const data = await resp.json();
+      YTBot.showToast(`Updated! ${data.channel.name} synced`, 'success');
+      setTimeout(() => location.reload(), 600);
+    } catch (err) {
+      YTBot.showToast(`Sync failed: ${err.message}`, 'error');
+    }
+  }
+</script>
+{% endblock %}

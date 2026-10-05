@@ -1,0 +1,807 @@
+{% extends "base.html" %}
+{% block title %}Auto Comment — YTBot{% endblock %}
+{% block page_title %}Auto Comment on Uploads{% endblock %}
+
+{% block head %}
+<style>
+  .variable-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background: rgba(99, 102, 241, 0.15);
+    border: 1px solid rgba(99, 102, 241, 0.35);
+    color: #a5b4fc;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-family: 'JetBrains Mono', monospace;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+  }
+  .variable-badge:hover {
+    background: rgba(99, 102, 241, 0.3);
+    border-color: #818cf8;
+    color: #fff;
+    transform: translateY(-1px);
+  }
+  .yt-preview-card {
+    background: #0f0f0f;
+    border: 1px solid #272727;
+    border-radius: 12px;
+    padding: 18px;
+    font-family: Roboto, Arial, sans-serif;
+  }
+  .yt-author-badge {
+    background: #272727;
+    color: #aaa;
+    font-size: 0.72rem;
+    font-weight: 500;
+    padding: 2px 6px;
+    border-radius: 10px;
+    margin-left: 6px;
+  }
+  .yt-comment-text {
+    color: #f1f1f1;
+    font-size: 0.92rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin-top: 6px;
+  }
+  .yt-comment-text a {
+    color: #3ea6ff;
+    text-decoration: none;
+  }
+  .yt-comment-text a:hover {
+    text-decoration: underline;
+  }
+  .template-item {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 12px;
+    transition: all 0.2s ease;
+  }
+  .template-item:hover {
+    border-color: rgba(99, 102, 241, 0.3);
+    background: rgba(255, 255, 255, 0.05);
+  }
+  .template-item.active-editing {
+    border-color: var(--accent);
+    box-shadow: 0 0 12px rgba(99, 102, 241, 0.2);
+  }
+  .switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+  }
+  .switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  .slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: #334155;
+    transition: .3s;
+    border-radius: 24px;
+  }
+  .slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .3s;
+    border-radius: 50%;
+  }
+  input:checked + .slider {
+    background-color: #22c55e;
+  }
+  input:checked + .slider:before {
+    transform: translateX(20px);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Top Channel Selector & Global Actions -->
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:14px;">
+  <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+    <div class="form-group" style="margin:0;min-width:280px;">
+      <label class="form-label" style="font-weight:700;">Select YouTube Channel</label>
+      <select class="form-control" onchange="location.href='/api/comments?channel_id='+this.value" style="font-size:1rem;padding:9px 14px;">
+        {% for ch in channels %}
+        <option value="{{ ch.id }}" {% if ch.id == selected_channel_id %}selected{% endif %}>
+          {{ ch.name }} {% if not ch.is_authenticated %}(⚠️ Needs OAuth){% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {% if selected_channel_id and config %}
+    <div style="display:flex;align-items:center;gap:10px;margin-top:22px;">
+      <span class="badge {% if config.is_enabled %}badge-success{% else %}badge-warn{% endif %}" style="padding:6px 12px;font-size:0.85rem;">
+        {% if config.is_enabled %}● Auto-Comment Active{% else %}○ Auto-Comment Disabled{% endif %}
+      </span>
+      <span class="badge" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);padding:6px 12px;font-size:0.85rem;">
+        Mode: {{ config.rotation_mode|capitalize }}
+      </span>
+      <span class="badge" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);padding:6px 12px;font-size:0.85rem;">
+        Delay: {{ (config.delay_seconds // 60) if config.delay_seconds >= 60 else config.delay_seconds }} {% if config.delay_seconds >= 60 %}min{% else %}sec{% endif %}
+      </span>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if selected_channel_id %}
+  <div style="display:flex;gap:10px;align-items:center;">
+    <button type="button" onclick="openTestModal()" class="btn btn-secondary" style="display:flex;align-items:center;gap:6px;">
+      🚀 Test Comment on Video
+    </button>
+    <button type="button" onclick="saveConfig()" class="btn btn-primary" id="save-btn" style="display:flex;align-items:center;gap:6px;">
+      💾 Save Channel Settings
+    </button>
+  </div>
+  {% endif %}
+</div>
+
+<!-- 📌 Pinning Disclaimer Notice Banner -->
+<div style="background:rgba(245, 158, 11, 0.1);border:1px solid rgba(245, 158, 11, 0.35);border-radius:12px;padding:14px 18px;margin-bottom:24px;display:flex;align-items:flex-start;gap:14px;box-shadow:0 4px 16px rgba(0,0,0,0.2);">
+  <div style="font-size:1.6rem;line-height:1;">📌</div>
+  <div>
+    <div style="font-weight:700;color:#fbbf24;font-size:0.95rem;display:flex;align-items:center;gap:8px;">
+      Notice on YouTube Comment Pinning
+      <span style="font-size:0.75rem;padding:2px 8px;border-radius:6px;background:rgba(245,158,11,0.2);color:#fde68a;">API Limitation</span>
+    </div>
+    <div style="color:#d1d5db;font-size:0.875rem;margin-top:4px;line-height:1.5;">
+      The <strong>YouTube Data API v3 does not permit automated comment pinning</strong> (no pinning endpoint is provided by Google). The bot will automatically publish your configured top-level comment once the video is public, but <strong>pinning must be done manually</strong> in YouTube Studio or directly in the YouTube app.
+    </div>
+  </div>
+</div>
+
+{% if selected_channel_id %}
+<div class="grid-2 gap-20" style="align-items:start;">
+
+  <!-- ── Left Column: Config & Template Manager ───────────────────────── -->
+  <div style="display:flex;flex-direction:column;gap:20px;">
+
+    <!-- Card 1: Channel Automation Settings -->
+    <div class="card" style="box-shadow:0 8px 24px rgba(0,0,0,0.12);">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="card-title" style="display:flex;align-items:center;gap:8px;">
+          <span>⚙️</span> Automation Configuration
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:0.875rem;color:var(--text-secondary);">Enable Auto-Comment</span>
+          <label class="switch">
+            <input type="checkbox" id="is_enabled" {% if config and config.is_enabled %}checked{% endif %} onchange="markUnsaved()">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div style="padding:16px 20px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <!-- Rotation Mode -->
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" style="font-weight:600;">
+              Template Rotation Mode
+              <small style="display:block;color:var(--text-muted);font-weight:normal;margin-top:2px;">Select how templates rotate per upload</small>
+            </label>
+            <select class="form-control" id="rotation_mode" onchange="markUnsaved()">
+              <option value="sequential" {% if config and config.rotation_mode == 'sequential' %}selected{% endif %}>
+                🔁 Sequential (Rotate in order each upload)
+              </option>
+              <option value="random" {% if config and config.rotation_mode == 'random' %}selected{% endif %}>
+                🎲 Random (Pick random active template)
+              </option>
+            </select>
+          </div>
+
+          <!-- Delay Setting -->
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" style="font-weight:600;">
+              Post Delay After Publish
+              <small style="display:block;color:var(--text-muted);font-weight:normal;margin-top:2px;">Optional pause before posting comment</small>
+            </label>
+            <select class="form-control" id="delay_preset" onchange="onDelayPresetChange()">
+              <option value="0" {% if config and config.delay_seconds == 0 %}selected{% endif %}>⚡ Immediate (0 seconds)</option>
+              <option value="60" {% if config and config.delay_seconds == 60 %}selected{% endif %}>⏱️ 1 Minute after publish</option>
+              <option value="120" {% if config and config.delay_seconds == 120 %}selected{% endif %}>⏱️ 2 Minutes after publish</option>
+              <option value="180" {% if config and config.delay_seconds == 180 %}selected{% endif %}>⏱️ 3 Minutes after publish</option>
+              <option value="300" {% if config and config.delay_seconds == 300 %}selected{% endif %}>⏱️ 5 Minutes after publish</option>
+              <option value="custom" {% if config and config.delay_seconds not in [0, 60, 120, 180, 300] %}selected{% endif %}>⚙️ Custom seconds...</option>
+            </select>
+            <div id="custom-delay-box" style="margin-top:8px;display:{% if config and config.delay_seconds not in [0, 60, 120, 180, 300] %}block{% else %}none{% endif %};">
+              <input type="number" class="form-control" id="delay_seconds" value="{{ config.delay_seconds if config else 60 }}" min="0" max="1800" placeholder="Seconds" oninput="markUnsaved()">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 2: Template Pool Manager -->
+    <div class="card" style="box-shadow:0 8px 24px rgba(0,0,0,0.12);">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="card-title" style="display:flex;align-items:center;gap:8px;">
+          <span>📝</span> Comment Template Pool
+          <span class="badge" style="background:rgba(255,255,255,0.06);margin-left:6px;" id="template-count-badge">
+            {{ templates|length }} template{% if templates|length != 1 %}s{% endif %}
+          </span>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="showAddTemplateForm()">
+          ➕ New Template
+        </button>
+      </div>
+
+      <div style="padding:16px 20px;">
+
+        <!-- Template Editor / Add Box -->
+        <div id="template-editor-box" style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;margin-bottom:20px;display:none;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div style="font-weight:600;font-size:0.92rem;" id="editor-title">➕ Add New Comment Template</div>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="hideTemplateEditor()">✕ Cancel</button>
+          </div>
+
+          <!-- Variable Quick-Insert Badges -->
+          <div style="margin-bottom:10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <span style="font-size:0.8rem;color:var(--text-muted);font-weight:600;margin-right:4px;">INSERT VARIABLE:</span>
+            <span class="variable-badge" onclick="insertVariable('{title}')">+ {title}</span>
+            <span class="variable-badge" onclick="insertVariable('{url}')">+ {url}</span>
+            <span class="variable-badge" onclick="insertVariable('{date}')">+ {date}</span>
+            <span class="variable-badge" onclick="insertVariable('{channel_name}')">+ {channel_name}</span>
+            <span class="variable-badge" onclick="insertVariable('{discord_link}')" title="Discord Server Invite Link configured in Discord Settings" style="border-color:rgba(88,101,242,0.4);color:#a5b4fc;">+ {discord_link}</span>
+          </div>
+
+          <textarea id="template-textarea" class="form-control" rows="5"
+            placeholder="Write your comment template here... Use {title}, {url}, and {date}"
+            oninput="onTemplateInput()"
+            style="font-family:inherit;line-height:1.5;font-size:0.92rem;"></textarea>
+
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;">
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;margin:0;">
+              <input type="checkbox" id="template-active-cb" checked style="width:16px;height:16px;accent-color:var(--accent);">
+              <span>Active in pool</span>
+            </label>
+            <div style="display:flex;gap:8px;">
+              <button type="button" class="btn btn-ghost btn-sm" onclick="hideTemplateEditor()">Cancel</button>
+              <button type="button" class="btn btn-primary btn-sm" id="editor-save-btn" onclick="submitTemplate()">Save Template</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Template Pool List -->
+        <div id="templates-list">
+          {% if templates %}
+            {% for tmpl in templates %}
+            <div class="template-item" id="tmpl-card-{{ tmpl.id }}" data-id="{{ tmpl.id }}">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+                <div style="flex:1;cursor:pointer;" onclick="previewSpecificTemplate({{ tmpl.id }})">
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                    <span class="badge {% if tmpl.is_active %}badge-success{% else %}badge-warn{% endif %}" style="font-size:0.75rem;padding:2px 8px;">
+                      {% if tmpl.is_active %}Active{% else %}Inactive{% endif %}
+                    </span>
+                    <span style="font-size:0.75rem;color:var(--text-muted);">Template #{{ loop.index }}</span>
+                  </div>
+                  <div style="font-size:0.9rem;color:#e2e8f0;white-space:pre-wrap;line-height:1.45;" id="tmpl-text-{{ tmpl.id }}">{{ tmpl.template_text }}</div>
+                </div>
+
+                <div style="display:flex;gap:6px;align-items:center;">
+                  <button type="button" class="btn btn-ghost btn-sm" onclick="previewSpecificTemplate({{ tmpl.id }})" title="Preview in YouTube Card">
+                    👁️ Preview
+                  </button>
+                  <button type="button" class="btn btn-ghost btn-sm" onclick="editTemplate({{ tmpl.id }})" title="Edit Template">
+                    ✏️ Edit
+                  </button>
+                  <button type="button" class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="deleteTemplate({{ tmpl.id }})" title="Delete Template">
+                    🗑️
+                  </button>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          {% else %}
+            <div style="text-align:center;padding:32px 16px;color:var(--text-muted);border:1px dashed var(--border);border-radius:10px;">
+              <div style="font-size:2rem;margin-bottom:8px;">💬</div>
+              <div>No comment templates created yet.</div>
+              <div style="font-size:0.85rem;margin-top:4px;">Click "New Template" above to add your first template.</div>
+            </div>
+          {% endif %}
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Right Column: YouTube Live Preview ──────────────────────────── -->
+  <div style="position:sticky;top:24px;display:flex;flex-direction:column;gap:20px;">
+
+    <!-- Preview Card Container -->
+    <div class="card" style="box-shadow:0 8px 24px rgba(0,0,0,0.12);">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="card-title" style="display:flex;align-items:center;gap:8px;">
+          <span>📺</span> Real-time YouTube Preview
+        </div>
+        <span class="badge" style="background:#ff0033;color:#fff;font-size:0.75rem;padding:3px 8px;font-weight:600;">
+          LIVE PREVIEW
+        </span>
+      </div>
+
+      <div style="padding:18px 20px;">
+        <div style="margin-bottom:12px;">
+          <label class="form-label" style="font-size:0.8rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.5px;">
+            Simulated Video Title
+          </label>
+          <input type="text" class="form-control" id="preview-sample-title" value="100 Days of Pro Solo vs Squad (Full Gameplay)" oninput="updateLivePreview()" style="font-size:0.85rem;padding:7px 12px;">
+        </div>
+
+        <!-- Styled YouTube Comment Card -->
+        <div class="yt-preview-card">
+          <div style="display:flex;gap:12px;align-items:flex-start;">
+            <!-- Channel Avatar -->
+            <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg, #6366f1, #a855f7);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:1.1rem;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,0.4);">
+              {{ user.username[0].upper() if user else 'C' }}
+            </div>
+
+            <div style="flex:1;min-width:0;">
+              <!-- Author Header -->
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;line-height:1.2;">
+                <span style="font-weight:600;font-size:0.85rem;color:#f1f1f1;" id="preview-channel-name">
+                  {% for ch in channels %}{% if ch.id == selected_channel_id %}{{ ch.name }}{% endif %}{% endfor %}
+                </span>
+                <span class="yt-author-badge">Author</span>
+                <span style="font-size:0.75rem;color:#aaa;">• Just now</span>
+              </div>
+
+              <!-- Comment Body -->
+              <div class="yt-comment-text" id="live-comment-body">
+                Loading preview...
+              </div>
+
+              <!-- Action Bar (YouTube icons simulated) -->
+              <div style="display:flex;align-items:center;gap:16px;margin-top:12px;color:#aaa;font-size:0.8rem;">
+                <span style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;">
+                  👍 <span>0</span>
+                </span>
+                <span style="cursor:pointer;">👎</span>
+                <span style="font-weight:500;cursor:pointer;">Reply</span>
+                <span style="display:inline-flex;align-items:center;gap:4px;color:#f43f5e;font-size:0.75rem;background:rgba(244,63,94,0.1);padding:2px 6px;border-radius:10px;">
+                  ❤️ by Channel
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:14px;padding:10px 14px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);font-size:0.8rem;color:var(--text-muted);display:flex;justify-content:space-between;align-items:center;">
+          <span>Variables Rendered:</span>
+          <span style="color:var(--accent-light);font-family:monospace;">{title}, {url}, {date}, {discord_link}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent History Card -->
+    <div class="card" style="box-shadow:0 8px 24px rgba(0,0,0,0.12);">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="card-title" style="display:flex;align-items:center;gap:8px;">
+          <span>📜</span> Recent Auto-Comments
+        </div>
+        <span style="font-size:0.8rem;color:var(--text-muted);">Last 25 attempts</span>
+      </div>
+
+      <div style="padding:12px 16px;">
+        {% if history %}
+        <div style="max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;">
+          {% for item in history %}
+          <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:8px;padding:10px 12px;font-size:0.82rem;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+              <a href="https://www.youtube.com/watch?v={{ item.youtube_video_id }}" target="_blank" style="font-weight:600;color:#38bdf8;text-decoration:none;">
+                ▶️ Video: {{ item.youtube_video_id }}
+              </a>
+              <span class="badge {% if item.status == 'success' %}badge-success{% else %}badge-danger{% endif %}" style="font-size:0.7rem;padding:2px 6px;">
+                {{ item.status|capitalize }}
+              </span>
+            </div>
+            <div style="color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:0.8rem;">
+              {{ item.comment_text }}
+            </div>
+            {% if item.error_message %}
+            <div style="color:#ef4444;font-size:0.75rem;margin-top:4px;word-break:break-all;">
+              Error: {{ item.error_message }}
+            </div>
+            {% endif %}
+            <div style="color:var(--text-muted);font-size:0.72rem;margin-top:4px;">
+              {{ item.posted_at or item.created_at }}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div style="text-align:center;padding:20px 8px;color:var(--text-muted);font-size:0.85rem;">
+          No comments posted for this channel yet.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- Test Comment Modal -->
+<div id="test-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;backdrop-filter:blur(4px);">
+  <div class="card" style="width:100%;max-width:520px;box-shadow:0 20px 40px rgba(0,0,0,0.5);margin:20px;border-color:rgba(99,102,241,0.3);">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+      <div class="card-title" style="display:flex;align-items:center;gap:8px;">
+        <span>🚀</span> Test Comment on Live Video
+      </div>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="closeTestModal()">✕</button>
+    </div>
+
+    <div style="padding:20px;">
+      <p style="font-size:0.875rem;color:var(--text-secondary);margin-bottom:14px;line-height:1.45;">
+        Post a test comment directly to any of your YouTube videos using this channel's credentials.
+      </p>
+
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label" style="font-weight:600;">YouTube Video ID or Watch URL</label>
+        <input type="text" class="form-control" id="test-video-id" placeholder="e.g. dQw4w9WgXcQ or https://youtube.com/watch?v=...">
+      </div>
+
+      <div class="form-group" style="margin-bottom:16px;">
+        <label class="form-label" style="font-weight:600;">Comment Text (uses active template if left blank)</label>
+        <textarea class="form-control" id="test-comment-text" rows="4" placeholder="Optional custom comment text..."></textarea>
+      </div>
+
+      <div id="test-status" style="margin-bottom:14px;display:none;padding:10px 12px;border-radius:8px;font-size:0.85rem;"></div>
+
+      <div style="display:flex;justify-content:flex-end;gap:10px;">
+        <button type="button" class="btn btn-ghost" onclick="closeTestModal()">Cancel</button>
+        <button type="button" class="btn btn-primary" id="test-submit-btn" onclick="submitTestComment()">
+          🚀 Send Test Comment
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endif %}
+
+<script>
+const CHANNEL_ID = {{ selected_channel_id or 0 }};
+const DISCORD_SERVER_URL = `{{ discord_server_url or 'https://discord.gg/your-server' }}`;
+let editingTemplateId = null;
+let currentActiveTemplateText = `{{ templates[0].template_text if templates else '' }}`.trim();
+
+function getCsrfToken() {
+  const match = document.cookie.match(new RegExp('(^| )csrf_token=([^;]+)'));
+  return match ? decodeURIComponent(match[2]) : '{{ csrf_token }}';
+}
+
+function markUnsaved() {
+  const btn = document.getElementById('save-btn');
+  if (btn) {
+    btn.classList.add('pulse');
+    btn.innerHTML = '💾 Save Changes *';
+  }
+}
+
+function onDelayPresetChange() {
+  const sel = document.getElementById('delay_preset');
+  const box = document.getElementById('custom-delay-box');
+  const numInput = document.getElementById('delay_seconds');
+  if (sel.value === 'custom') {
+    box.style.display = 'block';
+  } else {
+    box.style.display = 'none';
+    numInput.value = sel.value;
+  }
+  markUnsaved();
+}
+
+// ── Live Preview Logic ────────────────────────────────────────────────────────
+function formatClientPreview(template, title) {
+  if (!template) {
+    return '<em>(Template is empty)</em>';
+  }
+  const dateStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const sampleUrl = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+  const chName = document.getElementById('preview-channel-name').innerText.trim() || 'My Channel';
+
+  let text = template;
+  text = text.replace(/{title}/g, title || 'Video Title');
+  text = text.replace(/{url}/g, sampleUrl);
+  text = text.replace(/{date}/g, dateStr);
+  text = text.replace(/{channel_name}/g, chName);
+  text = text.replace(/{channel}/g, chName);
+  text = text.replace(/{discord_link}/g, DISCORD_SERVER_URL);
+  text = text.replace(/{discord_server}/g, DISCORD_SERVER_URL);
+  text = text.replace(/{discord}/g, DISCORD_SERVER_URL);
+
+  // Convert URLs to clickable links in preview
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  return text.replace(urlRegex, function(url) {
+    return `<a href="${url}" target="_blank">${url}</a>`;
+  });
+}
+
+function updateLivePreview() {
+  const title = document.getElementById('preview-sample-title').value;
+  const editorBox = document.getElementById('template-editor-box');
+  let activeText = currentActiveTemplateText;
+
+  if (editorBox && editorBox.style.display !== 'none') {
+    activeText = document.getElementById('template-textarea').value;
+  }
+
+  const previewEl = document.getElementById('live-comment-body');
+  if (previewEl) {
+    previewEl.innerHTML = formatClientPreview(activeText, title);
+  }
+}
+
+function onTemplateInput() {
+  updateLivePreview();
+}
+
+function insertVariable(varName) {
+  const ta = document.getElementById('template-textarea');
+  if (!ta) return;
+  const start = ta.selectionStart;
+  const end = ta.selectionEnd;
+  const val = ta.value;
+  ta.value = val.substring(0, start) + varName + val.substring(end);
+  ta.selectionStart = ta.selectionEnd = start + varName.length;
+  ta.focus();
+  updateLivePreview();
+}
+
+function previewSpecificTemplate(tmplId) {
+  const el = document.getElementById(`tmpl-text-${tmplId}`);
+  if (el) {
+    currentActiveTemplateText = el.innerText.trim();
+    document.querySelectorAll('.template-item').forEach(i => i.classList.remove('active-editing'));
+    const item = document.getElementById(`tmpl-card-${tmplId}`);
+    if (item) item.classList.add('active-editing');
+    updateLivePreview();
+  }
+}
+
+// ── Template Editor ───────────────────────────────────────────────────────────
+function showAddTemplateForm() {
+  editingTemplateId = null;
+  document.getElementById('editor-title').innerText = '➕ Add New Comment Template';
+  document.getElementById('template-textarea').value = '';
+  document.getElementById('template-active-cb').checked = true;
+  document.getElementById('template-editor-box').style.display = 'block';
+  document.getElementById('template-textarea').focus();
+  updateLivePreview();
+}
+
+function hideTemplateEditor() {
+  document.getElementById('template-editor-box').style.display = 'none';
+  editingTemplateId = null;
+  updateLivePreview();
+}
+
+function editTemplate(tmplId) {
+  editingTemplateId = tmplId;
+  const textEl = document.getElementById(`tmpl-text-${tmplId}`);
+  const rawText = textEl ? textEl.innerText.trim() : '';
+
+  document.getElementById('editor-title').innerText = `✏️ Edit Template #${tmplId}`;
+  document.getElementById('template-textarea').value = rawText;
+  document.getElementById('template-editor-box').style.display = 'block';
+  document.getElementById('template-textarea').focus();
+  previewSpecificTemplate(tmplId);
+}
+
+async function submitTemplate() {
+  const text = document.getElementById('template-textarea').value.trim();
+  const isActive = document.getElementById('template-active-cb').checked;
+  const saveBtn = document.getElementById('editor-save-btn');
+
+  if (!text) {
+    alert('Please enter some text for the comment template.');
+    return;
+  }
+
+  saveBtn.disabled = true;
+  saveBtn.innerText = 'Saving...';
+
+  try {
+    let url = `/api/comments/${CHANNEL_ID}/templates`;
+    let method = 'POST';
+
+    if (editingTemplateId) {
+      url = `/api/comments/${CHANNEL_ID}/templates/${editingTemplateId}`;
+      method = 'PUT';
+    }
+
+    const resp = await fetch(url, {
+      method: method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': getCsrfToken(),
+      },
+      body: JSON.stringify({
+        template_text: text,
+        is_active: isActive,
+      }),
+    });
+
+    const data = await resp.json();
+    if (resp.ok && data.ok) {
+      location.reload();
+    } else {
+      alert(data.detail || 'Failed to save template');
+    }
+  } catch (err) {
+    alert('Network error saving template: ' + err);
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.innerText = 'Save Template';
+  }
+}
+
+async function deleteTemplate(tmplId) {
+  if (!confirm('Are you sure you want to delete this comment template?')) {
+    return;
+  }
+  try {
+    const resp = await fetch(`/api/comments/${CHANNEL_ID}/templates/${tmplId}`, {
+      method: 'DELETE',
+      headers: {
+        'X-CSRF-Token': getCsrfToken(),
+      },
+    });
+    const data = await resp.json();
+    if (resp.ok && data.ok) {
+      const card = document.getElementById(`tmpl-card-${tmplId}`);
+      if (card) card.remove();
+      // Reload count
+      location.reload();
+    } else {
+      alert(data.detail || 'Failed to delete template');
+    }
+  } catch (err) {
+    alert('Network error: ' + err);
+  }
+}
+
+// ── Save Channel Settings ─────────────────────────────────────────────────────
+async function saveConfig() {
+  const isEnabled = document.getElementById('is_enabled').checked;
+  const rotationMode = document.getElementById('rotation_mode').value;
+  const delaySec = parseInt(document.getElementById('delay_seconds').value || '60', 10);
+  const saveBtn = document.getElementById('save-btn');
+
+  saveBtn.disabled = true;
+  saveBtn.innerHTML = '⏳ Saving...';
+
+  try {
+    const resp = await fetch(`/api/comments/${CHANNEL_ID}/config`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': getCsrfToken(),
+      },
+      body: JSON.stringify({
+        is_enabled: isEnabled,
+        rotation_mode: rotationMode,
+        delay_seconds: delaySec,
+      }),
+    });
+
+    const data = await resp.json();
+    if (resp.ok && data.ok) {
+      saveBtn.innerHTML = '✅ Saved!';
+      saveBtn.classList.remove('pulse');
+      setTimeout(() => {
+        saveBtn.innerHTML = '💾 Save Channel Settings';
+        saveBtn.disabled = false;
+      }, 1800);
+    } else {
+      alert(data.detail || 'Failed to save config');
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '💾 Save Channel Settings';
+    }
+  } catch (err) {
+    alert('Network error: ' + err);
+    saveBtn.disabled = false;
+    saveBtn.innerHTML = '💾 Save Channel Settings';
+  }
+}
+
+// ── Test Comment Modal ────────────────────────────────────────────────────────
+function openTestModal() {
+  document.getElementById('test-modal').style.display = 'flex';
+  document.getElementById('test-status').style.display = 'none';
+  document.getElementById('test-comment-text').value = currentActiveTemplateText;
+  document.getElementById('test-video-id').focus();
+}
+
+function closeTestModal() {
+  document.getElementById('test-modal').style.display = 'none';
+}
+
+function extractVideoId(raw) {
+  raw = raw.trim();
+  const regExp = /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = raw.match(regExp);
+  return (match && match[2].length === 11) ? match[2] : raw;
+}
+
+async function submitTestComment() {
+  const rawInput = document.getElementById('test-video-id').value.trim();
+  const videoId = extractVideoId(rawInput);
+  const commentText = document.getElementById('test-comment-text').value.trim();
+  const statusEl = document.getElementById('test-status');
+  const btn = document.getElementById('test-submit-btn');
+
+  if (!videoId) {
+    alert('Please enter a valid YouTube Video ID or Watch URL');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Posting to YouTube...';
+  statusEl.style.display = 'block';
+  statusEl.style.background = 'rgba(99, 102, 241, 0.15)';
+  statusEl.style.color = '#a5b4fc';
+  statusEl.innerText = 'Connecting to YouTube Data API with OAuth force-ssl scope...';
+
+  try {
+    const resp = await fetch(`/api/comments/${CHANNEL_ID}/test`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': getCsrfToken(),
+      },
+      body: JSON.stringify({
+        youtube_video_id: videoId,
+        template_text: commentText,
+      }),
+    });
+
+    const data = await resp.json();
+    if (resp.ok && data.ok) {
+      statusEl.style.background = 'rgba(34, 197, 94, 0.15)';
+      statusEl.style.color = '#86efac';
+      statusEl.innerHTML = `✅ <strong>Success!</strong> Comment posted to YouTube (ID: <code>${data.comment_id}</code>).<br><a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" style="color:#67e8f9;text-decoration:underline;">Click here to view on YouTube</a>`;
+      btn.innerHTML = '🚀 Posted!';
+      setTimeout(() => {
+        location.reload();
+      }, 2500);
+    } else {
+      statusEl.style.background = 'rgba(239, 68, 68, 0.15)';
+      statusEl.style.color = '#fca5a5';
+      statusEl.innerHTML = `❌ <strong>Error:</strong> ${data.detail || 'Failed to post comment.'}`;
+      btn.disabled = false;
+      btn.innerHTML = '🚀 Retry Comment';
+    }
+  } catch (err) {
+    statusEl.style.background = 'rgba(239, 68, 68, 0.15)';
+    statusEl.style.color = '#fca5a5';
+    statusEl.innerText = `Network error: ${err}`;
+    btn.disabled = false;
+    btn.innerHTML = '🚀 Retry Comment';
+  }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+  updateLivePreview();
+});
+</script>
+{% endblock %}

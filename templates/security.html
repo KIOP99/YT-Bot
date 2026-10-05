@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Security — YTBot{% endblock %}
+{% block page_title %}Security Settings{% endblock %}
+
+{% block content %}
+
+{% if msg == 'password_changed' %}
+<div class="alert alert-success">✅ Password changed successfully.</div>
+{% elif msg == 'rotated' %}
+<div class="alert alert-success">🔐 Credentials rotated. Check your Discord DMs for the new login details.</div>
+{% elif msg == '2fa_enabled' %}
+<div class="alert alert-success">✅ Two-factor authentication enabled.</div>
+{% elif msg == '2fa_disabled' %}
+<div class="alert alert-warn">⚠️ Two-factor authentication disabled.</div>
+{% endif %}
+
+<div class="grid-2 gap-16" style="align-items:start;">
+
+  <!-- Change Password -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">🔑 Change Password</div>
+    </div>
+
+    <form action="/security/change-password" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+
+      <div class="form-group">
+        <label class="form-label">Current Password</label>
+        <input class="form-control" type="password" name="current_password" autocomplete="current-password" required />
+      </div>
+      <div class="form-group">
+        <label class="form-label">New Password</label>
+        <input class="form-control" type="password" name="new_password" autocomplete="new-password" minlength="12" required />
+        <p class="text-muted text-sm" style="margin-top:4px;">Minimum 12 characters</p>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Confirm New Password</label>
+        <input class="form-control" type="password" name="confirm_password" autocomplete="new-password" required />
+      </div>
+      <button type="submit" class="btn btn-primary">🔐 Update Password</button>
+    </form>
+  </div>
+
+  <!-- Credential Rotation & 2FA -->
+  <div style="display:flex;flex-direction:column;gap:16px;">
+
+    <!-- Rotation -->
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">🔄 Credential Rotation</div>
+          <div class="card-subtitle">Automatically rotates username and password</div>
+        </div>
+      </div>
+      <p class="text-muted text-sm" style="margin-bottom:14px;">
+        New credentials will be sent to you via Discord DM and are never stored in plain text.
+        Current rotation interval: <strong>every {{ rotation_interval or '168' }} hours</strong>.
+      </p>
+      <form action="/security/rotate-now" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <button type="submit" class="btn btn-ghost" onclick="return confirm('Rotate credentials now? Your current login will expire.')">
+          🔄 Rotate Now
+        </button>
+      </form>
+    </div>
+
+    <!-- 2FA -->
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">🛡️ Two-Factor Authentication</div>
+          <div class="card-subtitle">TOTP via authenticator app</div>
+        </div>
+        {% if user.totp_enabled %}
+        <span class="badge badge-success">✅ Enabled</span>
+        {% else %}
+        <span class="badge badge-muted">Disabled</span>
+        {% endif %}
+      </div>
+
+      {% if user.totp_enabled %}
+      <form action="/auth/totp/disable" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Disable 2FA?')">🔓 Disable 2FA</button>
+      </form>
+      {% else %}
+      {% if totp_uri %}
+      <p class="text-muted text-sm" style="margin-bottom:14px;">
+        Scan the QR code with your authenticator app, then enter the 6-digit code to confirm.
+      </p>
+      <div style="text-align:center;margin-bottom:14px;">
+        <img id="qr-img" style="border-radius:var(--radius);border:3px solid #fff;display:inline-block;" width="200" height="200" />
+        <p class="text-sm" style="color:var(--text-muted);margin-top:8px;">
+          Or enter manually: <code style="font-size:0.75rem;">{{ totp_secret }}</code>
+        </p>
+      </div>
+      <form action="/auth/totp/enable" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <div class="form-group">
+          <input class="form-control" type="text" name="code" placeholder="6-digit code" maxlength="6" inputmode="numeric" required />
+        </div>
+        <button type="submit" class="btn btn-primary">✅ Enable 2FA</button>
+      </form>
+      <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+      <script>
+        QRCode.toDataURL('{{ totp_uri }}', { width: 200, margin: 1 }, (err, url) => {
+          if (!err) document.getElementById('qr-img').src = url;
+        });
+      </script>
+      {% else %}
+      <a href="/auth/totp/setup" class="btn btn-ghost">🛡 Set Up 2FA</a>
+      {% endif %}
+      {% endif %}
+    </div>
+
+  </div>
+
+</div>
+{% endblock %}

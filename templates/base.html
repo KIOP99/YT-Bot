@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="description" content="YTBot Dashboard — YouTube upload automation with Discord integration" />
+  <title>{% block title %}YTBot Dashboard{% endblock %}</title>
+
+  <!-- Preconnect -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+  <!-- Fonts + CSS -->
+  <link rel="stylesheet" href="/static/css/main.css?v=2.0" />
+
+  <style>
+    html, body, select {
+      color-scheme: dark !important;
+    }
+    select, select.form-control {
+      background-color: #181a24 !important;
+      color: #f8fafc !important;
+      color-scheme: dark !important;
+    }
+    select option, select.form-control option {
+      background-color: #181a24 !important;
+      color: #f8fafc !important;
+    }
+  </style>
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📹</text></svg>" />
+
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+<div class="layout">
+  <!-- ── Sidebar ─────────────────────────────────────────────────────── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">📹</div>
+      <div class="logo-text">YTBot</div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="sidebar-section">
+        <div class="sidebar-section-label">Overview</div>
+        <a class="nav-item" href="/">
+          <span class="nav-icon">🏠</span> Dashboard
+        </a>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-section-label">Content</div>
+        <a class="nav-item" href="/api/channels">
+          <span class="nav-icon">📺</span> Channels
+        </a>
+        <a class="nav-item" href="/api/videos">
+          <span class="nav-icon">🎬</span> Videos
+        </a>
+        <a class="nav-item" href="/api/thumbnails">
+          <span class="nav-icon">🖼️</span> Thumbnails
+        </a>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-section-label">Automation</div>
+        <a class="nav-item" href="/api/schedule">
+          <span class="nav-icon">⏰</span> Schedule
+        </a>
+        <a class="nav-item" href="/api/discord">
+          <span class="nav-icon">💬</span> Discord
+        </a>
+        <a class="nav-item" href="/api/bots">
+          <span class="nav-icon">🤖</span> Bot Manager
+        </a>
+        <a class="nav-item" href="/api/comments">
+          <span class="nav-icon">✍️</span> Auto Comment
+        </a>
+        <a class="nav-item" href="/api/license-auth">
+          <span class="nav-icon">🔑</span> LicenseAuth
+        </a>
+      </div>
+
+
+      <div class="sidebar-section">
+        <div class="sidebar-section-label">System</div>
+        <a class="nav-item" href="/security/logs">
+          <span class="nav-icon">📋</span> System Logs
+        </a>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-pill">
+        {% if user and user.avatar_url %}
+        <img src="{{ user.avatar_url }}" alt="Google Avatar" class="user-avatar" style="width:36px;height:36px;border-radius:50%;object-fit:cover;" />
+        {% else %}
+        <div class="user-avatar">
+          {{ (user.email or user.username)[0].upper() if user else 'G' }}
+        </div>
+        {% endif %}
+        <div style="overflow:hidden;">
+          <div class="user-name" style="text-overflow:ellipsis;overflow:hidden;white-space:nowrap;max-width:130px;" title="{{ user.email or user.username if user else '' }}">
+            {{ user.email or user.username if user else 'Google User' }}
+          </div>
+          <div class="user-role">Google Admin</div>
+        </div>
+      </div>
+      <form action="/auth/logout" method="post" style="margin-top:8px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <button type="submit" class="btn btn-ghost btn-sm w-full" style="justify-content:center;">
+          🚪 Sign Out
+        </button>
+      </form>
+    </div>
+  </aside>
+
+  <!-- ── Main ─────────────────────────────────────────────────────────── -->
+  <div class="main">
+    <!-- Topbar -->
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button id="menu-btn" class="btn btn-ghost btn-sm" style="display:none;" aria-label="Menu">☰</button>
+        <h1 class="topbar-title">{% block page_title %}Dashboard{% endblock %}</h1>
+      </div>
+      <div class="topbar-actions">
+        <span class="dot-pulse" title="System Online"></span>
+        <span style="font-size:0.78rem;color:var(--text-muted);margin-left:6px;">Live</span>
+      </div>
+    </header>
+
+    <!-- Page Content -->
+    <main class="content fade-in">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<!-- Scripts -->
+<script src="/static/js/main.js?v=2.3"></script>
+{% block scripts %}{% endblock %}
+
+</body>
+</html>
