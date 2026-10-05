@@ -27,8 +27,8 @@ class Settings(BaseSettings):
     app_env: Literal["development", "production"] = "development"
     app_secret_key: str = Field(..., min_length=32)
     app_host: str = "0.0.0.0"
-    app_port: int = 19232
-    app_base_url: str = "http://og.yaddu.net:19232"
+    app_port: int = 25569
+    app_base_url: str = "http://www.luminaa.site:25569"
 
     @model_validator(mode="before")
     @classmethod
@@ -46,13 +46,13 @@ class Settings(BaseSettings):
     # ── Database ────────────────────────────────────────────────
     database_url: str = "sqlite+aiosqlite:///./ytbot.db"
 
-    # ── Admin (bootstrap credentials) ───────────────────────────
+    # ── Admin (bootstrap / legacy) ──────────────────────────────
     admin_username: str = "admin"
-    admin_password: str = Field(default="8492", min_length=2)
+    admin_password: str = ""
 
-    # ── Credential Rotation ──────────────────────────────────────
-    cred_rotation_interval_hours: int = 168
-    cred_rotation_notify_dm: bool = True
+    # ── Credential Rotation (disabled — Google OAuth login only) ─
+    cred_rotation_interval_hours: int = 0
+    cred_rotation_notify_dm: bool = False
 
     # ── JWT ──────────────────────────────────────────────────────
     jwt_secret: str = Field(..., min_length=32)
@@ -71,7 +71,9 @@ class Settings(BaseSettings):
     # ── Google OAuth ─────────────────────────────────────────────
     google_client_id: str
     google_client_secret: str
-    google_redirect_uri: str = "http://og.yaddu.net:19232/api/channels/oauth/callback"
+    google_redirect_uri: str = "http://www.luminaa.site:25569/api/channels/oauth/callback"
+    google_login_redirect_uri: str = "http://www.luminaa.site:25569/auth/google/callback"
+    allowed_google_emails: str = "subhajit0019@gmail.com"
 
     # ── Scheduling ───────────────────────────────────────────────
     scheduler_timezone: str = "US/Eastern"

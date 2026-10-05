@@ -116,7 +116,7 @@ async def _cleanup_auto_thumbnails() -> None:
 
 
 async def _seed_admin_user() -> None:
-    """Create the initial admin user on first run."""
+    """Create the initial user shell if database is empty."""
     from core.database import AsyncSessionLocal
     from models.user import User
     from sqlalchemy import select
@@ -125,14 +125,17 @@ async def _seed_admin_user() -> None:
         result = await db.execute(select(User).where(User.id == 1))
         existing = result.scalar_one_or_none()
         if existing is None:
+            admin_email = settings.allowed_google_emails.split(",")[0].strip() if settings.allowed_google_emails else "admin@google.com"
             user = User(
                 id=1,
-                username=settings.admin_username,
-                hashed_password=hash_password(settings.admin_password),
+                username=admin_email,
+                email=admin_email,
+                hashed_password="google_oauth_no_password",
+                is_active=True,
             )
             db.add(user)
             await db.commit()
-            log.info("Admin user seeded", username=settings.admin_username)
+            log.info("Initial user shell seeded for Google OAuth", email=admin_email)
 
 
 

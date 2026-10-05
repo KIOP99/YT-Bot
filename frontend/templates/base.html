@@ -87,23 +87,26 @@
 
       <div class="sidebar-section">
         <div class="sidebar-section-label">System</div>
-        <a class="nav-item" href="/security">
-          <span class="nav-icon">🔐</span> Security
-        </a>
         <a class="nav-item" href="/security/logs">
-          <span class="nav-icon">📋</span> Logs
+          <span class="nav-icon">📋</span> System Logs
         </a>
       </div>
     </nav>
 
     <div class="sidebar-footer">
       <div class="user-pill">
+        {% if user and user.avatar_url %}
+        <img src="{{ user.avatar_url }}" alt="Google Avatar" class="user-avatar" style="width:36px;height:36px;border-radius:50%;object-fit:cover;" />
+        {% else %}
         <div class="user-avatar">
-          {{ user.username[0].upper() if user else 'A' }}
+          {{ (user.email or user.username)[0].upper() if user else 'G' }}
         </div>
-        <div>
-          <div class="user-name">{{ user.username if user else 'Admin' }}</div>
-          <div class="user-role">Administrator</div>
+        {% endif %}
+        <div style="overflow:hidden;">
+          <div class="user-name" style="text-overflow:ellipsis;overflow:hidden;white-space:nowrap;max-width:130px;" title="{{ user.email or user.username if user else '' }}">
+            {{ user.email or user.username if user else 'Google User' }}
+          </div>
+          <div class="user-role">Google Admin</div>
         </div>
       </div>
       <form action="/auth/logout" method="post" style="margin-top:8px;">

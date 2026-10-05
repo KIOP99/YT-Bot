@@ -31,6 +31,8 @@ limiter = Limiter(key_func=get_remote_address)
 # Paths that are exempt from CSRF checks
 CSRF_EXEMPT_PATHS = {
     "/api/channels/oauth/callback",
+    "/auth/google",
+    "/auth/google/callback",
     "/auth/login",
     "/auth/logout",
     "/api/bots",
@@ -46,6 +48,13 @@ def add_middleware(app: FastAPI) -> None:
         CORSMiddleware,
         allow_origins=[
             settings.app_base_url.rstrip("/"),
+            "http://www.luminaa.site:25569",
+            "https://www.luminaa.site:25569",
+            "http://luminaa.site:25569",
+            "https://luminaa.site:25569",
+            "http://13.221.13.139:25569",
+            "http://localhost:25569",
+            "http://127.0.0.1:25569",
             "http://og.yaddu.net:19232",
             "http://localhost:19232",
             "http://127.0.0.1:19232",

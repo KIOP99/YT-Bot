@@ -164,11 +164,15 @@ async def _load_channel_jobs() -> None:
 
 
 def _add_credential_rotation_job() -> None:
-    """Add credential rotation recurring job."""
+    """Add credential rotation recurring job (disabled when interval is 0)."""
+    interval_hours = settings.cred_rotation_interval_hours
+    if not interval_hours or interval_hours <= 0:
+        log.info("Credential rotation disabled (Google OAuth login active)")
+        return
+
     from scheduler.jobs import credential_rotation_job
 
     sched = get_scheduler()
-    interval_hours = settings.cred_rotation_interval_hours
     sched.add_job(
         credential_rotation_job,
         trigger="interval",

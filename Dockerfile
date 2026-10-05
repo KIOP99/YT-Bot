@@ -29,7 +29,7 @@ RUN useradd -r -s /bin/false ytbot && \
 USER ytbot
 
 # ── Expose port ─────────────────────────────────────────────────────
-EXPOSE 19232 8000
+EXPOSE 25569 19232 8000
 
 # ── Default: run bot + API together ─────────────────────────────────
 CMD ["python", "run_bot.py"]

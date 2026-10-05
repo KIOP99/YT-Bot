@@ -21,7 +21,6 @@ from core.logging_config import get_logger
 from core.security import generate_csrf_token
 from models.channel import YouTubeChannel
 from models.discord_config import DiscordConfig
-from models.discord_bot import DiscordBot
 from models.schedule_config import ScheduleConfig
 from services.encryption import encrypt
 from services.youtube import YouTubeService
@@ -57,13 +56,12 @@ async def create_channel(
     db.add(channel)
     await db.flush()
 
-    # Create default schedule, discord config, and discord bot
+    # Create default schedule and discord configs
     db.add(ScheduleConfig(channel_id=channel.id))
     db.add(DiscordConfig(channel_id=channel.id))
-    db.add(DiscordBot(channel_id=channel.id))
-    await db.commit()
+    await db.flush()
 
-    return RedirectResponse(url="/api/channels", status_code=303)
+    return RedirectResponse(url=f"/channels/{channel.id}/oauth", status_code=303)
 
 
 @router.get("/{channel_id}", response_class=HTMLResponse)
@@ -95,7 +93,6 @@ async def delete_channel(
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found")
     await db.delete(channel)
-    await db.commit()
     return {"ok": True}
 
 
@@ -114,7 +111,7 @@ async def initiate_oauth(
 
     state = f"{channel_id}:{secrets.token_urlsafe(16)}"
     channel.oauth_state = state
-    await db.commit()
+    await db.flush()
 
     auth_url = YouTubeService.get_authorization_url(state)
     return RedirectResponse(url=auth_url)
@@ -172,7 +169,7 @@ async def oauth_callback(
     except Exception as exc:
         log.warning("Could not fetch channel info", error=str(exc))
 
-    await db.commit()
+    await db.flush()
     log.info("OAuth complete", channel_id=channel_id, yt_channel=channel.youtube_channel_id)
     return RedirectResponse(url=f"/api/channels?oauth=success&id={channel_id}", status_code=302)
 

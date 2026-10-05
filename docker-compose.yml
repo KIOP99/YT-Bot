@@ -9,7 +9,7 @@ services:
     restart: unless-stopped
     env_file: .env
     ports:
-      - "${APP_PORT:-19232}:${APP_PORT:-19232}"
+      - "${APP_PORT:-25569}:${APP_PORT:-25569}"
     volumes:
       - ./uploads:/app/uploads          # Persist uploaded files
       - ./logs:/app/logs                 # Persist logs
@@ -19,7 +19,7 @@ services:
     networks:
       - ytbot_net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${APP_PORT:-19232}/api/stats"]
+      test: ["CMD", "curl", "-f", "http://localhost:${APP_PORT:-25569}/api/stats"]
       interval: 30s
       timeout: 10s
       retries: 3
